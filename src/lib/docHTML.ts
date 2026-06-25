@@ -80,9 +80,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
   const cnpjRow = client.cnpj ? '<div><strong>CNPJ/CPF:</strong> ' + client.cnpj + '</div>' : '';
   const ieRow = client.ie ? '<div><strong>INS. EST.:</strong> ' + client.ie + '</div>' : '';
   const clientPhone = client.phone ? '<div style="font-size:9px;color:#666;margin-top:2px">' + client.phone + '</div>' : '';
-  const obsDiv = doc.notes
-    ? '<div style="background:#fff8f0;border:1px solid #f0c080;border-radius:4px;padding:6px 10px;font-size:9px;color:#7c4a00"><strong style="display:block;margin-bottom:2px;font-size:9px;text-transform:uppercase;color:#b45309">Obs.:</strong>' + doc.notes + '</div>'
-    : '';
+
 
   const emittedDate = new Date().toLocaleDateString('pt-BR');
 
@@ -196,11 +194,10 @@ export function buildDocHTML(p: DocHTMLParams): string {
     // Totals + obs + cheques
   html +=
     '<table style="margin-top:8px;margin-bottom:8px"><tr>' +
-    '<td style="width:' + (chequesHTML ? '28%' : '50%') + ';vertical-align:top;padding-right:10px">' + obsDiv + '</td>' +
-    (chequesHTML ? ('<td style="width:32%;vertical-align:top;padding-right:10px">' +
+    (chequesHTML ? ('<td style="width:55%;vertical-align:top;padding-right:12px">' +
       '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:4px">Cheques / Parcelas</div>' +
       chequesHTML + '</td>') : '') +
-    '<td style="vertical-align:top;width:' + (chequesHTML ? '40%' : '50%') + '">' +
+    '<td style="vertical-align:top;' + (chequesHTML ? 'width:45%' : 'width:100%') + '">' +
     '<table style="border:2px solid #1a5c34;border-radius:4px;overflow:hidden;font-size:10px">' +
     '<tr style="background:#f0faf4"><td style="' + SUMTD + '"><strong>Total em M3</strong></td><td style="' + SUMTD + ';font-weight:bold;color:#1a5c34;text-align:right;font-size:12px">' + totals.m3.toFixed(4) + ' m3</td></tr>' +
     '<tr><td style="' + SUMTD + '">Subtotal Madeira</td><td style="' + SUMTD + ';font-weight:bold;text-align:right">' + fmt(totals.subtotal) + '</td></tr>' +
