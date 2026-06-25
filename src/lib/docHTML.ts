@@ -1,5 +1,6 @@
 import { Document, TimberItem } from '../types';
 import { calcDerived } from './calc';
+import { Cheque } from './cheques';
 
 const TH = 'border:1px solid #2d7a4f;padding:4px 5px;text-align:center;font-weight:bold;font-size:11px';
 const TD = 'border:1px solid #ccc;padding:3px 5px;text-align:center;font-size:11px';
@@ -18,10 +19,11 @@ interface DocHTMLParams {
   displayDate: string;
   client: Record<string, any>;
   settings: Record<string, any>;
+  cheques?: Cheque[];
 }
 
 export function buildDocHTML(p: DocHTMLParams): string {
-  const { doc, type, totals, commission, total, displayDate, client, settings: s } = p;
+  const { doc, type, totals, commission, total, displayDate, client, settings: s, cheques = [] } = p;
   const rows = (doc.items || []).map((item: TimberItem, i: number) => {
     const d = calcDerived(item);
     const bg = i % 2 === 0 ? '#fff' : '#f2faf5';
@@ -84,7 +86,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
 
   const emittedDate = new Date().toLocaleDateString('pt-BR');
 
-  return '<!DOCTYPE html>\n' +
+  let html = '<!DOCTYPE html>\n' +
     '<html lang="pt-BR">\n' +
     '<head>\n' +
     '<meta charset="UTF-8"/>\n' +
@@ -166,12 +168,39 @@ export function buildDocHTML(p: DocHTMLParams): string {
     '<td colspan="3" style="' + TD + '"></td>' +
     '<td style="' + TD + ';font-size:9px;color:#a7f3c0;font-style:italic;text-align:right;white-space:nowrap">Total m3: <span style="color:#86efac;font-weight:900;font-size:12px">' + totals.m3.toFixed(4) + '</span></td>' +
     '<td style="' + TD + ';color:#fcd34d;font-weight:900;font-size:12px;text-align:right">' + fmt(totals.subtotal) + '</td>' +
-    '</tr></tfoot></table>' +
+    '</tr></tfoot></table>';
 
-    // Totals + obs
+  // Build cheques HTML string
+  const chequesHTML: string = cheques.length > 0 ? (
+    '<table style="width:100%;border-collapse:collapse;font-size:9px">' +
+    '<thead><tr style="background:#1a5c34;color:#fff">' +
+    '<th style="padding:3px 5px;text-align:left;font-size:8px">No</th>' +
+    '<th style="padding:3px 5px;text-align:center;font-size:8px">Prazo</th>' +
+    '<th style="padding:3px 5px;text-align:center;font-size:8px">Vencimento</th>' +
+    '<th style="padding:3px 5px;text-align:right;font-size:8px">Valor</th>' +
+    '</tr></thead><tbody>' +
+    cheques.map((c: Cheque, i: number) =>
+      '<tr style="background:' + (i % 2 === 0 ? '#fff' : '#f0faf4') + '">' +
+      '<td style="padding:2px 5px;font-size:8px;color:#555">' + String(i + 1).padStart(2, '0') + '</td>' +
+      '<td style="padding:2px 5px;text-align:center;font-size:8px;color:#555">' + c.dias + 'd</td>' +
+      '<td style="padding:2px 5px;text-align:center;font-weight:bold;font-size:9px">' + c.vencimento + '</td>' +
+      '<td style="padding:2px 5px;text-align:right;font-weight:bold;font-size:9px;color:#1a5c34">' + fmt(c.valor) + '</td>' +
+      '</tr>'
+    ).join('') +
+    '</tbody><tfoot><tr style="background:#1a5c34;color:#fff">' +
+    '<td colspan="3" style="padding:2px 5px;font-size:8px;font-weight:bold">' + cheques.length + ' cheque' + (cheques.length > 1 ? 's' : '') + '</td>' +
+    '<td style="padding:2px 5px;text-align:right;font-weight:bold;font-size:9px">' + fmt(cheques.reduce((acc: number, c: Cheque) => acc + c.valor, 0)) + '</td>' +
+    '</tr></tfoot></table>'
+  ) : '';
+
+    // Totals + obs + cheques
+  html +=
     '<table style="margin-top:8px;margin-bottom:8px"><tr>' +
-    '<td style="width:52%;vertical-align:top;padding-right:14px">' + obsDiv + '</td>' +
-    '<td style="vertical-align:top">' +
+    '<td style="width:' + (chequesHTML ? '28%' : '50%') + ';vertical-align:top;padding-right:10px">' + obsDiv + '</td>' +
+    (chequesHTML ? ('<td style="width:32%;vertical-align:top;padding-right:10px">' +
+      '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:4px">Cheques / Parcelas</div>' +
+      chequesHTML + '</td>') : '') +
+    '<td style="vertical-align:top;width:' + (chequesHTML ? '40%' : '50%') + '">' +
     '<table style="border:2px solid #1a5c34;border-radius:4px;overflow:hidden;font-size:10px">' +
     '<tr style="background:#f0faf4"><td style="' + SUMTD + '"><strong>Total em M3</strong></td><td style="' + SUMTD + ';font-weight:bold;color:#1a5c34;text-align:right;font-size:12px">' + totals.m3.toFixed(4) + ' m3</td></tr>' +
     '<tr><td style="' + SUMTD + '">Subtotal Madeira</td><td style="' + SUMTD + ';font-weight:bold;text-align:right">' + fmt(totals.subtotal) + '</td></tr>' +
@@ -199,4 +228,5 @@ export function buildDocHTML(p: DocHTMLParams): string {
     '</div>' +
 
     '</div></div></body></html>';
+  return html;
 }
