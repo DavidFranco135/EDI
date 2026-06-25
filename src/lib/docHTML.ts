@@ -294,6 +294,6 @@ export function buildDocHTML(p: DocHTMLParams): string {
     '<div style="text-align:center;margin-top:8px;font-size:8px;color:#999;letter-spacing:0.5px">EDI – Gestão de Madeiras &nbsp;|&nbsp; ' + s.companyPhone + ' &nbsp;|&nbsp; ' + s.companyEmail + ' &nbsp;|&nbsp; Emitido em ' + emittedDate + '</div>' +
     '</div>' +
 
-    '</div></div></body></html>';
+    '</div></div></div></body></html>';
   return html;
 }
