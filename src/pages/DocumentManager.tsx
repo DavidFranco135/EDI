@@ -7,7 +7,7 @@ import { ChequeTable } from '../components/ChequeTable';
 import { Cheque } from '../lib/cheques';
 import { calcDerived } from '../lib/calc';
 import { buildDocHTML } from '../lib/docHTML';
-import { ArrowLeft, Save, Printer, Plus, Share2, Trash2, ChevronDown, ChevronUp, Building2 } from 'lucide-react';
+import { ArrowLeft, Save, Printer, Plus, Share2, Trash2, ChevronDown, ChevronUp, Building2, Leaf } from 'lucide-react';
 import { format } from 'date-fns';
 
 function fmt(n: number) {
@@ -189,7 +189,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     navigate('/relatorios');
   };
 
-  const getHTML = () => buildDocHTML({
+  const getHTML = (eco = false) => buildDocHTML({
     doc,
     type,
     totals,
@@ -200,12 +200,20 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     settings: state.settings,
     cheques: doc.cheques || [],
     blocos: doc.blocos || [],
+    eco,
   });
 
   const handlePrint = () => {
     const win = window.open('', '_blank');
     if (!win) { alert('Pop-up bloqueado. Permita pop-ups para este site e tente novamente.'); return; }
-    win.document.write(getHTML());
+    win.document.write(getHTML(false));
+    win.document.close();
+  };
+
+  const handlePrintEco = () => {
+    const win = window.open('', '_blank');
+    if (!win) { alert('Pop-up bloqueado. Permita pop-ups para este site e tente novamente.'); return; }
+    win.document.write(getHTML(true));
     win.document.close();
   };
 
@@ -274,7 +282,11 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
           </button>
           <button onClick={handlePrint}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-green-700 text-white rounded-xl text-sm font-bold hover:bg-green-800 shadow-md transition-all active:scale-95">
-            <Printer className="w-4 h-4" /> Imprimir / PDF
+            <Printer className="w-4 h-4" /> PDF Colorido
+          </button>
+          <button onClick={handlePrintEco}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-white border-2 border-green-700 text-green-800 rounded-xl text-sm font-bold hover:bg-green-50 shadow-md transition-all active:scale-95">
+            <Leaf className="w-4 h-4" /> PDF Econômico
           </button>
           <button onClick={handleSave}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-800 text-white rounded-xl text-sm font-bold hover:bg-gray-900 shadow-md transition-all active:scale-95">
@@ -486,14 +498,18 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
             <p className="text-2xl font-black text-yellow-300">{fmt(total)}</p>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button onClick={handleShare}
             className="py-3 bg-blue-600 text-white rounded-lg font-black text-sm hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2">
             <Share2 className="w-4 h-4" /> Compartilhar
           </button>
           <button onClick={handlePrint}
-            className="py-3 bg-white text-green-800 rounded-lg font-black text-sm hover:bg-green-50 active:scale-95 transition-all flex items-center justify-center gap-2">
-            <Printer className="w-4 h-4" /> Imprimir / PDF
+            className="py-2.5 bg-white text-green-800 rounded-lg font-black text-sm hover:bg-green-50 active:scale-95 transition-all flex items-center justify-center gap-1.5">
+            <Printer className="w-4 h-4" /> PDF Colorido
+          </button>
+          <button onClick={handlePrintEco}
+            className="py-2.5 bg-green-600 text-white rounded-lg font-black text-sm hover:bg-green-500 active:scale-95 transition-all flex items-center justify-center gap-1.5">
+            <Leaf className="w-4 h-4" /> PDF Econômico
           </button>
         </div>
       </div>
