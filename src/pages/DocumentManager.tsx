@@ -37,6 +37,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     commissionValue: 0,
     settlement: 0,
     paymentTerms: 'À VISTA',
+    motorista: '',
     notes:
       type === 'romaneio'
         ? 'O FRETE SERÁ PAGO À VISTA AO TRANSPORTADOR NO ATO DA DESCARGA, DEDUZIDO DO MATERIAL. MANDAR O PAGAMENTO DA MADEIRA PELO MOTORISTA.'
@@ -143,7 +144,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <title>${type.toUpperCase()} Nº ${doc.number}</title>
 <style>
   @page { size: A4 portrait; margin: 8mm; }
@@ -151,33 +152,68 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
   html, body { height: 100%; }
   body {
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 10px;
+    font-size: 14px;
     color: #000;
     background: #fff;
   }
   table { border-collapse: collapse; width: 100%; }
   .page {
-    min-height: 100vh;
     display: flex;
     flex-direction: column;
-    padding: 0;
+    padding: 16px;
   }
   .content { flex: 1; }
+
+  /* ── TELA (celular e desktop) ── */
   @media screen {
-    body { padding: 16px; max-width: 800px; margin: 0 auto; background: #f0f0f0; }
-    .page { background: #fff; padding: 16px; box-shadow: 0 2px 16px #0002; border-radius: 8px; min-height: 1100px; }
-    .print-btn {
-      display: block; width: 100%; padding: 14px;
-      background: #1a5c34; color: #fff; font-size: 16px; font-weight: bold;
-      border: none; border-radius: 8px; cursor: pointer; margin-bottom: 16px;
-      letter-spacing: 0.5px;
+    body {
+      background: #e8e8e8;
+      padding: 12px;
+      font-size: 15px;
     }
-    .print-btn:active { background: #155228; }
+    .page {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.15);
+      padding: 20px;
+      width: 100%;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    .print-btn {
+      display: block;
+      width: 100%;
+      padding: 18px;
+      background: #1a5c34;
+      color: #fff;
+      font-size: 18px;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-bottom: 16px;
+      letter-spacing: 0.5px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .print-btn:active { background: #155228; transform: scale(0.98); }
+
+    /* Aumenta fontes na tela para ficar legível no celular */
+    td, th, div, p, span { font-size: inherit; }
   }
+
+  /* ── IMPRESSÃO / PDF ── */
   @media print {
-    body { padding: 0; background: #fff; }
+    body {
+      padding: 0;
+      background: #fff;
+      font-size: 9px;
+    }
     .print-btn { display: none !important; }
-    .page { min-height: 100vh; padding: 0; box-shadow: none; }
+    .page {
+      padding: 0;
+      box-shadow: none;
+      border-radius: 0;
+    }
   }
 </style>
 </head>
@@ -195,7 +231,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
         <div style="width:62px;height:62px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:36px;text-align:center;line-height:62px">🌲</div>
       </td>
       <td style="vertical-align:middle">
-        <div style="font-size:18px;font-weight:900;color:#fff;letter-spacing:1px;text-transform:uppercase">${s.companyName}</div>
+        <div style="font-size:clamp(14px,4vw,20px);font-weight:900;color:#fff;letter-spacing:1px;text-transform:uppercase">${s.companyName}</div>
         <div style="font-size:10px;color:#a7f3c0;font-weight:bold;text-transform:uppercase;letter-spacing:2px;margin-top:2px">${s.companyNeighborhood}</div>
         <div style="font-size:9px;color:#d1fae5;margin-top:3px">${s.companyAddress} — ${s.companyCity} | CEP: ${s.companyCEP}</div>
         <div style="font-size:9px;color:#d1fae5">TEL: ${s.companyPhone} | CNPJ: ${s.companyCNPJ} | ${s.companyEmail}</div>
@@ -314,32 +350,33 @@ ${doc.notes ? `<div style="background:#fff8f0;border:1px solid #f0a040;border-to
 
 </div><!-- end content -->
 
-<!-- ═══ RODAPÉ — ASSINATURAS ═══ -->
-<div style="border-top:2px solid #1a5c34;padding-top:10px;margin-top:8px">
+<!-- ═══ RODAPÉ — NOMES ═══ -->
+<div style="border-top:2px solid #1a5c34;margin-top:10px;padding-top:8px">
   <table>
     <tr>
-      <td style="width:33%;text-align:center;padding:0 8px">
-        <div style="border-top:1px solid #333;padding-top:6px;margin-top:28px">
-          <div style="font-weight:900;font-size:10px;text-transform:uppercase;color:#1a5c34">${doc.clientName || (client as any).name || 'CLIENTE'}</div>
-          <div style="font-size:9px;color:#555">Assinatura do Cliente</div>
+      <td style="width:33%;padding:6px 10px">
+        <div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">
+          <div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:3px">Cliente</div>
+          <div style="font-weight:900;font-size:11px;text-transform:uppercase;color:#1a5c34">${doc.clientName || (client as any).name || '—'}</div>
+          ${(client as any).phone ? `<div style="font-size:9px;color:#666;margin-top:2px">${(client as any).phone}</div>` : ''}
         </div>
       </td>
-      <td style="width:34%;text-align:center;padding:0 8px">
-        <div style="border-top:1px solid #333;padding-top:6px;margin-top:28px">
-          <div style="font-weight:900;font-size:10px;text-transform:uppercase;color:#1a5c34">${type === 'pedido' && doc.supplier ? doc.supplier : 'FORNECEDOR / FÁBRICA'}</div>
-          <div style="font-size:9px;color:#555">Assinatura do Fornecedor</div>
+      <td style="width:34%;padding:6px 10px">
+        <div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">
+          <div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:3px">Fornecedor / Fábrica</div>
+          <div style="font-weight:900;font-size:11px;text-transform:uppercase;color:#1a5c34">${type === 'pedido' && doc.supplier ? doc.supplier : (doc.supplier || '—')}</div>
         </div>
       </td>
-      <td style="width:33%;text-align:center;padding:0 8px">
-        <div style="border-top:1px solid #333;padding-top:6px;margin-top:28px">
-          <div style="font-weight:900;font-size:10px;text-transform:uppercase;color:#1a5c34">MOTORISTA</div>
-          <div style="font-size:9px;color:#555">Nome / Assinatura do Motorista</div>
+      <td style="width:33%;padding:6px 10px">
+        <div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">
+          <div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:3px">Motorista</div>
+          <div style="font-weight:900;font-size:11px;text-transform:uppercase;color:#1a5c34">${doc.motorista || '—'}</div>
         </div>
       </td>
     </tr>
   </table>
-  <div style="text-align:center;margin-top:8px;font-size:8px;color:#aaa">
-    Documento gerado por EDI – Gestão de Madeiras | ${new Date().toLocaleDateString('pt-BR')}
+  <div style="text-align:center;margin-top:6px;font-size:8px;color:#aaa">
+    EDI – Gestão de Madeiras | Emitido em ${new Date().toLocaleDateString('pt-BR')}
   </div>
 </div>
 
@@ -448,10 +485,16 @@ ${doc.notes ? `<div style="background:#fff8f0;border:1px solid #f0a040;border-to
           </div>
         </>}
 
-        <div className="space-y-1 md:col-span-2 lg:col-span-4">
+        <div className="space-y-1 md:col-span-2">
           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Observações</label>
           <textarea value={doc.notes || ''} onChange={e => setDoc(p => ({ ...p, notes: e.target.value }))}
             className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none resize-none" rows={2} />
+        </div>
+        <div className="space-y-1 md:col-span-2">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nome do Motorista</label>
+          <input value={doc.motorista || ''} onChange={e => setDoc(p => ({ ...p, motorista: e.target.value }))}
+            placeholder="Ex: João da Silva"
+            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
         </div>
       </div>
 
@@ -491,6 +534,6 @@ ${doc.notes ? `<div style="background:#fff8f0;border:1px solid #f0a040;border-to
   );
 };
 
-const TH = 'border:1px solid #2d7a4f;padding:3px 4px;text-align:center;font-weight:bold;font-size:9px';
-const TD = 'border:1px solid #ccc;padding:2px 4px;text-align:center;font-size:9px';
-const SUMTD = 'border:1px solid #ddd;padding:5px 10px;font-size:10px';
+const TH = 'border:1px solid #2d7a4f;padding:4px 5px;text-align:center;font-weight:bold;font-size:11px';
+const TD = 'border:1px solid #ccc;padding:3px 5px;text-align:center;font-size:11px';
+const SUMTD = 'border:1px solid #ddd;padding:6px 12px;font-size:12px';
