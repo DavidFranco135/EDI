@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../store/AppContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Users, FileText, Truck, ArrowRight, Clock, CheckCircle2, Trash2 } from 'lucide-react';
+import { Plus, Users, FileText, Truck, ArrowRight, Clock, CheckCircle2 } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { motion } from 'motion/react';
 
@@ -9,83 +9,10 @@ function fmt(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-// ── Price table row ──────────────────────────────────────────────────────────
-interface PrecoRow {
-  id: string;
-  bitola: number;
-  largura: number;
-  comprimento: number;
-  precoUnidade: number;
-  valorM3: number;
-}
-
-function calcRow(r: PrecoRow) {
-  // m³ por peça = (bitola/100) * (largura/100) * comprimento
-  const m3Peca = r.bitola > 0 && r.largura > 0 && r.comprimento > 0
-    ? (r.bitola / 100) * (r.largura / 100) * r.comprimento
-    : 0;
-
-  // Metros lineares por peça = comprimento
-  const ml = r.comprimento;
-
-  // QTD peças por m³ = 1 / m3Peca
-  const qtdPorM3 = m3Peca > 0 ? Math.round(1 / m3Peca) : 0;
-
-  // Preço por unidade = valorM3 * m3Peca
-  const precoUnidade = r.valorM3 > 0 && m3Peca > 0
-    ? r.valorM3 * m3Peca
-    : r.precoUnidade;
-
-  // M³ (always 1 when calculated from qtd por m³ perspective = m3 de 1 peça)
-  const m3Display = m3Peca;
-
-  return { m3Peca, ml, qtdPorM3, precoUnidade, m3Display };
-}
-
-function newRow(): PrecoRow {
-  return {
-    id: Math.random().toString(36).slice(2, 9),
-    bitola: 0,
-    largura: 0,
-    comprimento: 3,
-    precoUnidade: 0,
-    valorM3: 1400,
-  };
-}
-
-const INP = 'w-full text-center text-xs bg-white border border-gray-300 rounded px-1 py-1 focus:border-green-600 outline-none tabular-nums';
-const INP_GRAY = 'w-full text-center text-xs bg-gray-100 border border-gray-200 rounded px-1 py-1 focus:bg-white focus:border-green-600 outline-none tabular-nums cursor-pointer';
-
 // ── Component ────────────────────────────────────────────────────────────────
 export const Dashboard: React.FC = () => {
   const { state, saveDocument } = useApp();
   const navigate = useNavigate();
-
-  // Load price rows from localStorage
-  const [precoRows, setPrecoRows] = useState<PrecoRow[]>(() => {
-    try {
-      const saved = localStorage.getItem('edi_preco_rows');
-      return saved ? JSON.parse(saved) : [
-        { id: '1', bitola: 0.017, largura: 0.30, comprimento: 3, precoUnidade: 0, valorM3: 1400 },
-        { id: '2', bitola: 0.017, largura: 0.28, comprimento: 3, precoUnidade: 0, valorM3: 1400 },
-        { id: '3', bitola: 0.017, largura: 0.20, comprimento: 3, precoUnidade: 0, valorM3: 1200 },
-        { id: '4', bitola: 0.018, largura: 0.30, comprimento: 3, precoUnidade: 0, valorM3: 1400 },
-        { id: '5', bitola: 0.018, largura: 0.28, comprimento: 3, precoUnidade: 0, valorM3: 1400 },
-      ];
-    } catch { return []; }
-  });
-
-  const saveRows = (rows: PrecoRow[]) => {
-    setPrecoRows(rows);
-    localStorage.setItem('edi_preco_rows', JSON.stringify(rows));
-  };
-
-  const updateRow = (id: string, field: keyof PrecoRow, val: number) => {
-    saveRows(precoRows.map(r => r.id === id ? { ...r, [field]: val } : r));
-  };
-
-  const addRow = () => saveRows([...precoRows, newRow()]);
-  const removeRow = (id: string) => saveRows(precoRows.filter(r => r.id !== id));
 
   // Pedidos em andamento
   const pedidosAndamento = state.documents.filter(
@@ -158,120 +85,6 @@ export const Dashboard: React.FC = () => {
             <Plus className="w-4 h-4 text-gray-300 group-hover:text-green-600 transition-colors" />
           </Link>
         ))}
-      </div>
-
-      {/* ── TABELA DE PREÇOS ──────────────────────────────────────────────── */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-200 bg-green-700 flex items-center justify-between">
-          <div>
-            <h2 className="font-black text-white text-base">Tabela de Preço do Pinus</h2>
-            <p className="text-green-200 text-[10px]">Edite bitola, largura, comprimento e valor m³ → restante calculado automaticamente</p>
-          </div>
-          <button onClick={addRow}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-800 rounded-lg text-xs font-black hover:bg-green-50 transition-all">
-            <Plus className="w-3.5 h-3.5" /> Linha
-          </button>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-xs" style={{ minWidth: 700 }}>
-            <thead>
-              <tr className="bg-yellow-50 border-b-2 border-yellow-300">
-                <th className="border border-gray-300 px-2 py-2 text-center font-black text-[11px] text-gray-700 bg-gray-100">Bitola (cm)</th>
-                <th className="border border-gray-300 px-2 py-2 text-center font-black text-[11px] text-gray-700 bg-gray-100">Largura (cm)</th>
-                <th className="border border-gray-300 px-2 py-2 text-center font-black text-[11px] text-gray-700 bg-gray-100">Comprimento</th>
-                <th className="border border-gray-300 px-2 py-2 text-center font-black text-[11px] text-gray-700">QTD Peças por m³</th>
-                <th className="border border-gray-300 px-2 py-2 text-center font-black text-[11px] text-gray-700">Preço por Unidade</th>
-                <th className="border border-gray-300 px-2 py-2 text-center font-black text-[11px] text-gray-700">Metros Lineares</th>
-                <th className="border border-gray-300 px-2 py-2 text-center font-black text-[11px] text-green-700 bg-green-50">Valor m³</th>
-                <th className="border border-gray-300 px-2 py-2 text-center font-black text-[11px] text-green-700 bg-green-50">M³</th>
-                <th className="border border-gray-300 w-7 bg-gray-50"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {precoRows.map((row, i) => {
-                const c = calcRow(row);
-                return (
-                  <tr key={row.id} className={i % 2 === 0 ? 'bg-white hover:bg-green-50/30' : 'bg-gray-50/60 hover:bg-green-50/30'}>
-                    {/* Bitola — editable, gray */}
-                    <td className="border border-gray-200 p-1">
-                      <input type="number" step="0.001"
-                        value={row.bitola || ''}
-                        onChange={e => updateRow(row.id, 'bitola', parseFloat(e.target.value) || 0)}
-                        className={INP_GRAY} placeholder="0.017" />
-                    </td>
-                    {/* Largura — editable, gray */}
-                    <td className="border border-gray-200 p-1">
-                      <input type="number" step="0.01"
-                        value={row.largura || ''}
-                        onChange={e => updateRow(row.id, 'largura', parseFloat(e.target.value) || 0)}
-                        className={INP_GRAY} placeholder="0.30" />
-                    </td>
-                    {/* Comprimento — editable, gray */}
-                    <td className="border border-gray-200 p-1">
-                      <select
-                        value={row.comprimento}
-                        onChange={e => updateRow(row.id, 'comprimento', parseFloat(e.target.value))}
-                        className={INP_GRAY + ' cursor-pointer'}>
-                        <option value={3}>3</option>
-                        <option value={4}>4</option>
-                        <option value={5}>5</option>
-                        <option value={6}>6</option>
-                      </select>
-                    </td>
-                    {/* QTD por m³ — calculated */}
-                    <td className="border border-gray-200 p-1 text-center font-bold text-gray-800">
-                      {c.qtdPorM3 || '—'}
-                    </td>
-                    {/* Preço unidade — calculated */}
-                    <td className="border border-gray-200 p-1 text-center font-bold text-gray-800">
-                      {c.precoUnidade > 0 ? fmt(c.precoUnidade) : '—'}
-                    </td>
-                    {/* Metros Lineares — calculated */}
-                    <td className="border border-gray-200 p-1 text-center text-gray-600">
-                      {c.ml.toFixed(2)}
-                    </td>
-                    {/* Valor m³ — editable */}
-                    <td className="border border-gray-200 p-1 bg-green-50">
-                      <input type="number"
-                        value={row.valorM3 || ''}
-                        onChange={e => updateRow(row.id, 'valorM3', parseFloat(e.target.value) || 0)}
-                        className={INP + ' font-bold text-green-800 bg-green-50 border-green-200'} />
-                    </td>
-                    {/* M³ — calculated */}
-                    <td className="border border-gray-200 p-1 text-center font-bold text-green-700 bg-green-50/60">
-                      {c.m3Display > 0 ? c.m3Display.toFixed(4) : '—'}
-                    </td>
-                    {/* Delete */}
-                    <td className="border border-gray-200 p-1 text-center">
-                      <button onClick={() => removeRow(row.id)}
-                        className="p-1 text-gray-300 hover:text-red-500 transition-colors">
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-              {precoRows.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="text-center py-6 text-gray-400 italic text-sm">
-                    Nenhuma linha. Clique em "+ Linha" para adicionar.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            <tfoot>
-              <tr className="bg-yellow-50 border-t-2 border-yellow-300">
-                <td colSpan={6} className="px-3 py-2 text-right text-[10px] font-bold text-gray-500 uppercase tracking-wider italic">
-                  valor em m³ R$1.400/1200
-                </td>
-                <td colSpan={3} className="px-3 py-2 text-[10px] text-gray-400">
-                  Clique nos campos cinzas para editar
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
       </div>
 
       {/* Pedidos em andamento */}
