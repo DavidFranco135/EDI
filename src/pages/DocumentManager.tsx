@@ -69,7 +69,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
 
   const total =
     type === 'romaneio'
-      ? totals.subtotal + (doc.freight || 0) - commission - (doc.settlement || 0)
+      ? totals.subtotal - (doc.freight || 0) - commission - (doc.settlement || 0)
       : totals.subtotal;
 
   // ── Client data ──────────────────────────────────────────────────────────
@@ -445,7 +445,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
               {type === 'romaneio' && (
                 <>
                   <div className="px-4 py-2 flex justify-between text-blue-700">
-                    <span>+ Frete</span>
+                    <span>– Frete</span>
                     <span className="font-bold">{fmt(doc.freight || 0)}</span>
                   </div>
                   <div className="px-4 py-2 flex justify-between text-amber-700">
