@@ -30,6 +30,16 @@ export interface TimberItem {
   calcMode: CalcMode;
 }
 
+export interface Bloco {
+  id: string;
+  label: string;        // ex: "Loja Centro", "Loja Norte"
+  clientId?: string;
+  clientName: string;
+  clientData?: Partial<Client>;
+  items: TimberItem[];  // legacy / single-block
+  blocos?: Bloco[];     // multi-block mode
+}
+
 export interface Document {
   id: string;
   type: 'pedido' | 'romaneio';
@@ -38,7 +48,8 @@ export interface Document {
   clientId?: string;
   clientName: string;
   clientData?: Partial<Client>;       // fornecedor (pedido)
-  items: TimberItem[];
+  items: TimberItem[];  // legacy / single-block
+  blocos?: Bloco[];     // multi-block mode
   subtotal: number;
   totalM3: number;
   total: number;
