@@ -296,16 +296,18 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
         <TimberCalculator items={doc.items || []} onChange={items => setDoc(p => ({ ...p, items }))} />
       </div>
 
-      {/* Cheques / Parcelas */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-        <ChequeTable
-          cheques={doc.cheques || []}
-          onChange={cheques => setDoc(p => ({ ...p, cheques }))}
-          total={total}
-          paymentTerms={doc.paymentTerms || ''}
-          docDate={doc.date || ''}
-        />
-      </div>
+      {/* Cheques / Parcelas — somente romaneio */}
+      {type === 'romaneio' && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <ChequeTable
+            cheques={doc.cheques || []}
+            onChange={cheques => setDoc(p => ({ ...p, cheques }))}
+            total={total}
+            paymentTerms={doc.paymentTerms || ''}
+            docDate={doc.date || ''}
+          />
+        </div>
+      )}
 
       {/* Live totals */}
       <div className="bg-green-700 text-white rounded-xl p-4 shadow-md">
