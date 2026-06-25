@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../store/AppContext';
 import { Document } from '../types';
 import { TimberCalculator } from '../components/TimberCalculator';
 import { calcDerived } from '../lib/calc';
-import { ArrowLeft, Save, Printer, Plus } from 'lucide-react';
+import { ArrowLeft, Save, Printer, Plus, Share2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 function fmt(n: number) {
@@ -15,6 +15,8 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
   const { state, saveDocument } = useApp();
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const fromPedidoId = searchParams.get('from');
 
   const nextNumber = () =>
     (state.documents.filter(d => d.type === type).length + 1)
@@ -38,6 +40,8 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     settlement: 0,
     paymentTerms: 'À VISTA',
     motorista: '',
+    supplier: '',
+    status: 'andamento' as const,
     notes:
       type === 'romaneio'
         ? 'O FRETE SERÁ PAGO À VISTA AO TRANSPORTADOR NO ATO DA DESCARGA, DEDUZIDO DO MATERIAL. MANDAR O PAGAMENTO DA MADEIRA PELO MOTORISTA.'
@@ -50,6 +54,24 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
       if (ex) setDoc(ex);
     }
   }, [id]);
+
+  // Pre-fill romaneio from pedido
+  useEffect(() => {
+    if (fromPedidoId && type === 'romaneio') {
+      const pedido = state.documents.find(d => d.id === fromPedidoId);
+      if (pedido) {
+        setDoc(prev => ({
+          ...prev,
+          clientId: pedido.clientId || '',
+          clientName: pedido.clientName,
+          clientData: pedido.clientData,
+          supplier: pedido.supplier || '',
+          items: pedido.items.map(i => ({ ...i, id: Math.random().toString(36).slice(2,9) })),
+          paymentTerms: pedido.paymentTerms,
+        }));
+      }
+    }
+  }, [fromPedidoId]);
 
   const totals = useMemo(() => {
     return (doc.items || []).reduce(
@@ -64,6 +86,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
   }, [doc.items]);
 
   const commission = doc.commissionPct ? totals.subtotal * (doc.commissionPct / 100) : 0;
+  // frete e comissão são deduções independentes
   const total =
     type === 'romaneio'
       ? totals.subtotal - (doc.freight || 0) - commission - (doc.settlement || 0)
@@ -106,6 +129,29 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
 
   const s = state.settings;
   const rows = (doc.items || []).map(item => ({ item, d: calcDerived(item) }));
+
+
+  const handleShare = async () => {
+    const title = `${type.toUpperCase()} Nº ${doc.number} — ${doc.clientName || ''}`;
+    const text = [
+      `*${type.toUpperCase()} Nº ${doc.number}*`,
+      `Cliente: ${doc.clientName || '—'}`,
+      doc.supplier ? `Fornecedor: ${doc.supplier}` : '',
+      `Data: ${displayDate}`,
+      `Total M³: ${totals.m3.toFixed(4)}`,
+      `Total: ${fmt(total)}`,
+      type === 'romaneio' ? `Motorista: ${doc.motorista || '—'}` : '',
+    ].filter(Boolean).join('\n');
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text });
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(text);
+      alert('Dados copiados! Cole no WhatsApp ou email.');
+    }
+  };
 
   // Build complete print HTML - portrait A4, full page
   const handlePrint = () => {
@@ -258,7 +304,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
         ${(client as any).ie ? `<div><strong>INS. EST.:</strong> ${(client as any).ie}</div>` : ''}
       </td>
       <td style="vertical-align:top;border-left:1px dashed #ccc;padding-left:12px">
-        ${type === 'pedido' && doc.supplier ? `<div><strong>FORNECEDOR:</strong> <span style="font-weight:bold;text-transform:uppercase">${doc.supplier}</span></div>` : ''}
+        ${doc.supplier ? `<div><strong>FORNECEDOR:</strong> <span style="font-weight:bold;text-transform:uppercase">${doc.supplier}</span></div>` : ''}
         ${(client as any).phone ? `<div><strong>FONE:</strong> ${(client as any).phone}</div>` : ''}
         <div><strong>COND. PAGTO:</strong> ${doc.paymentTerms || '—'}</div>
         <div><strong>FRETE:</strong> ${type === 'romaneio' ? 'INCLUSO' : 'A COMBINAR'}</div>
@@ -326,14 +372,16 @@ ${doc.notes ? `<div style="background:#fff8f0;border:1px solid #f0a040;border-to
           <td style="${SUMTD};font-weight:bold;text-align:right">${fmt(totals.subtotal)}</td>
         </tr>
         ${type === 'romaneio' ? `
+        ${(doc.freight || 0) > 0 ? `
         <tr style="background:#fff8f0">
           <td style="${SUMTD}">– Frete</td>
           <td style="${SUMTD};font-weight:bold;text-align:right;color:#b45309">${fmt(doc.freight || 0)}</td>
-        </tr>
+        </tr>` : ''}
+        ${commission > 0 ? `
         <tr style="background:#fffbeb">
-          <td style="${SUMTD}">– Comissão (${doc.commissionPct}%)</td>
+          <td style="${SUMTD}">– Comissão</td>
           <td style="${SUMTD};font-weight:bold;text-align:right;color:#92400e">${fmt(commission)}</td>
-        </tr>
+        </tr>` : ''}
         ${(doc.settlement || 0) > 0 ? `
         <tr style="background:#fff0f0">
           <td style="${SUMTD}">– Acerto escritório</td>
@@ -406,6 +454,12 @@ ${doc.notes ? `<div style="background:#fff8f0;border:1px solid #f0a040;border-to
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={handleShare}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-md transition-all active:scale-95"
+          >
+            <Share2 className="w-4 h-4" /> Compartilhar
+          </button>
+          <button
             onClick={handlePrint}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-green-700 text-white rounded-xl text-sm font-bold hover:bg-green-800 shadow-md transition-all active:scale-95"
           >
@@ -453,13 +507,12 @@ ${doc.notes ? `<div style="background:#fff8f0;border:1px solid #f0a040;border-to
           )}
         </div>
 
-        {type === 'pedido' && (
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Fornecedor / Fábrica</label>
-            <input value={doc.supplier || ''} onChange={e => setDoc(p => ({ ...p, supplier: e.target.value }))}
-              placeholder="Nome da fábrica..." className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
-          </div>
-        )}
+        <div className="space-y-1 md:col-span-2">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Fornecedor / Fábrica</label>
+          <input value={doc.supplier || ''} onChange={e => setDoc(p => ({ ...p, supplier: e.target.value }))}
+            placeholder="Nome da fábrica..."
+            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+        </div>
 
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Condição Pagamento</label>
@@ -525,10 +578,16 @@ ${doc.notes ? `<div style="background:#fff8f0;border:1px solid #f0a040;border-to
             <p className="text-2xl font-black text-yellow-300">{fmt(total)}</p>
           </div>
         </div>
-        <button onClick={handlePrint}
-          className="w-full py-3 bg-white text-green-800 rounded-lg font-black text-base hover:bg-green-50 active:scale-95 transition-all flex items-center justify-center gap-2">
-          <Printer className="w-5 h-5" /> Imprimir / Salvar PDF
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={handleShare}
+            className="py-3 bg-blue-600 text-white rounded-lg font-black text-sm hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2">
+            <Share2 className="w-4 h-4" /> Compartilhar
+          </button>
+          <button onClick={handlePrint}
+            className="py-3 bg-white text-green-800 rounded-lg font-black text-sm hover:bg-green-50 active:scale-95 transition-all flex items-center justify-center gap-2">
+            <Printer className="w-4 h-4" /> Imprimir / PDF
+          </button>
+        </div>
       </div>
     </div>
   );
