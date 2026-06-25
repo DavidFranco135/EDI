@@ -266,7 +266,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
         \${doc.supplier ? \`<div><strong>FORNECEDOR:</strong> <span style="font-weight:bold;text-transform:uppercase">\${doc.supplier}</span></div>\` : ''}
         \${(client as any).phone ? \`<div><strong>FONE:</strong> \${(client as any).phone}</div>\` : ''}
         <div><strong>COND. PAGTO:</strong> \${doc.paymentTerms || '—'}</div>
-        <div><strong>FRETE:</strong> \${type === 'romaneio' ? 'INCLUSO' : 'A COMBINAR'}</div>
+        <div><strong>FRETE:</strong> \${type === 'romaneio' ? 'INCLUSO' : 'INCLUSO'}</div>
       </td>
     </tr>
   </table>
