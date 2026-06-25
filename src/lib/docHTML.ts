@@ -1,4 +1,4 @@
-import { Document, TimberItem } from '../types';
+import { Document, TimberItem, Bloco } from '../types';
 import { calcDerived } from './calc';
 import { Cheque } from './cheques';
 
@@ -20,40 +20,97 @@ interface DocHTMLParams {
   client: Record<string, any>;
   settings: Record<string, any>;
   cheques?: Cheque[];
+  blocos?: Bloco[];
 }
 
 export function buildDocHTML(p: DocHTMLParams): string {
-  const { doc, type, totals, commission, total, displayDate, client, settings: s, cheques = [] } = p;
-  const rows = (doc.items || []).map((item: TimberItem, i: number) => {
-    const d = calcDerived(item);
-    const bg = i % 2 === 0 ? '#fff' : '#f2faf5';
+  const { doc, type, totals, commission, total, displayDate, client, settings: s, cheques = [], blocos = [] } = p;
+  function buildItemRows(items: TimberItem[]): string {
+    const rows = items.map((item: TimberItem, i: number) => {
+      const d = calcDerived(item);
+      const bg = i % 2 === 0 ? '#fff' : '#f2faf5';
+      return (
+        '<tr style="background:' + bg + '">' +
+        '<td style="' + TD + '">' + item.espessura + '</td>' +
+        '<td style="' + TD + '">' + item.largura + '</td>' +
+        '<td style="' + TD + ';background:#e8f5ee">' + (item.c3 || '') + '</td>' +
+        '<td style="' + TD + ';background:#e8f5ee">' + (item.c4 || '') + '</td>' +
+        '<td style="' + TD + ';background:#e8f5ee">' + (item.c5 || '') + '</td>' +
+        '<td style="' + TD + ';background:#e8f5ee">' + (item.c6 || '') + '</td>' +
+        '<td style="' + TD + ';font-weight:bold">' + (d.qtyTotal || '') + '</td>' +
+        '<td style="' + TD + '">' + d.linearMeters.toFixed(3) + '</td>' +
+        '<td style="' + TD + ';font-weight:bold">' + (item.pricePerM3 ? fmt(item.pricePerM3) : '') + '</td>' +
+        '<td style="' + TD + ';font-style:italic">' + d.avgLength.toFixed(2) + '</td>' +
+        '<td style="' + TD + ';font-weight:bold;color:#1a5c34">' + d.finalM3.toFixed(4) + '</td>' +
+        '<td style="' + TD + ';font-weight:bold;text-align:right">' + fmt(d.value) + '</td>' +
+        '</tr>'
+      );
+    });
+    const minEmpty = Math.max(0, 5 - rows.length);
+    const empty = Array.from({ length: minEmpty }).map((_, i) => {
+      const bg = (rows.length + i) % 2 === 0 ? '#fff' : '#f2faf5';
+      return '<tr style="background:' + bg + '">' +
+        Array.from({ length: 12 }).map(() => '<td style="' + TD + ';height:20px"></td>').join('') +
+        '</tr>';
+    });
+    return rows.join('') + empty.join('');
+  }
+
+  // Use blocos if available, otherwise fall back to legacy items
+  const activeBlocos: Bloco[] = blocos.length > 0
+    ? blocos
+    : [{ id: 'main', label: '', clientName: doc.clientName || '', items: doc.items || [] }];
+
+  const isMultiBloco = activeBlocos.length > 1;
+
+  // Build table section(s)
+  function buildTableSection(items: TimberItem[]): string {
+    const qtyT = items.reduce((s: number, it: TimberItem) => s + calcDerived(it).qtyTotal, 0);
+    const m3T = items.reduce((s: number, it: TimberItem) => s + calcDerived(it).finalM3, 0);
+    const valT = items.reduce((s: number, it: TimberItem) => s + calcDerived(it).value, 0);
     return (
-      '<tr style="background:' + bg + '">' +
-      '<td style="' + TD + '">' + item.espessura + '</td>' +
-      '<td style="' + TD + '">' + item.largura + '</td>' +
-      '<td style="' + TD + ';background:#e8f5ee">' + (item.c3 || '') + '</td>' +
-      '<td style="' + TD + ';background:#e8f5ee">' + (item.c4 || '') + '</td>' +
-      '<td style="' + TD + ';background:#e8f5ee">' + (item.c5 || '') + '</td>' +
-      '<td style="' + TD + ';background:#e8f5ee">' + (item.c6 || '') + '</td>' +
-      '<td style="' + TD + ';font-weight:bold">' + (d.qtyTotal || '') + '</td>' +
-      '<td style="' + TD + '">' + d.linearMeters.toFixed(3) + '</td>' +
-      '<td style="' + TD + ';font-weight:bold">' + (item.pricePerM3 ? fmt(item.pricePerM3) : '') + '</td>' +
-      '<td style="' + TD + ';font-style:italic">' + d.avgLength.toFixed(2) + '</td>' +
-      '<td style="' + TD + ';font-weight:bold;color:#1a5c34">' + d.finalM3.toFixed(4) + '</td>' +
-      '<td style="' + TD + ';font-weight:bold;text-align:right">' + fmt(d.value) + '</td>' +
-      '</tr>'
+      '<table style="margin-bottom:4px;font-size:9px">' +
+      '<thead>' +
+      '<tr style="background:#1a5c34;color:#fff">' +
+      '<th style="' + TH + '" rowspan="2">Bitola<br>(cm)</th>' +
+      '<th style="' + TH + '" rowspan="2">Larg.<br>(cm)</th>' +
+      '<th style="' + TH + ';background:#155228;font-size:8px" colspan="4">Comprimento (m) — Qtd de Pecas</th>' +
+      '<th style="' + TH + '" rowspan="2">Qtd<br>Pcs</th>' +
+      '<th style="' + TH + '" rowspan="2">Metros<br>Lin.</th>' +
+      '<th style="' + TH + '" rowspan="2">R$/m3</th>' +
+      '<th style="' + TH + '" rowspan="2">Med.<br>Comp.</th>' +
+      '<th style="' + TH + ';background:#2d7a4f" rowspan="2">M3</th>' +
+      '<th style="' + TH + ';background:#b45309" rowspan="2">VALOR</th>' +
+      '</tr>' +
+      '<tr style="background:#2d7a4f;color:#fff">' +
+      '<th style="' + TH + '">3,00</th><th style="' + TH + '">4,00</th><th style="' + TH + '">5,00</th><th style="' + TH + '">6,00</th>' +
+      '</tr></thead>' +
+      '<tbody>' + buildItemRows(items) + '</tbody>' +
+      '<tfoot><tr style="background:#1a5c34;color:#fff;font-weight:bold">' +
+      '<td colspan="6" style="' + TD + '"></td>' +
+      '<td style="' + TD + ';text-align:center;font-size:11px">' + qtyT + '</td>' +
+      '<td colspan="3" style="' + TD + '"></td>' +
+      '<td style="' + TD + ';font-size:9px;color:#a7f3c0;text-align:right;white-space:nowrap">Total m3: <span style="color:#86efac;font-weight:900;font-size:11px">' + m3T.toFixed(4) + '</span></td>' +
+      '<td style="' + TD + ';color:#fcd34d;font-weight:900;font-size:11px;text-align:right">' + fmt(valT) + '</td>' +
+      '</tr></tfoot></table>'
     );
-  });
+  }
 
-  const minEmpty = Math.max(0, 10 - rows.length);
-  const emptyRows = Array.from({ length: minEmpty }).map((_, i) => {
-    const bg = (rows.length + i) % 2 === 0 ? '#fff' : '#f2faf5';
-    return '<tr style="background:' + bg + '">' +
-      Array.from({ length: 12 }).map(() => '<td style="' + TD + ';height:22px"></td>').join('') +
-      '</tr>';
-  });
+  // Build all bloco sections
+  const tablesSections = activeBlocos.map((bloco: Bloco) => {
+    const bc = bloco.clientData as any || {};
+    const blocoClient = bc;
+    const blocoHeader = isMultiBloco
+      ? '<div style="background:#e8f5ee;border:1px solid #1a5c34;border-radius:4px 4px 0 0;padding:5px 10px;margin-top:8px;display:flex;justify-content:space-between;align-items:center">' +
+        '<span style="font-weight:900;font-size:11px;color:#1a5c34;text-transform:uppercase">&#127970; ' + (bloco.label || 'Bloco') + '</span>' +
+        '<span style="font-size:10px;color:#555;font-weight:bold">' + (bloco.clientName || '') + (blocoClient.city ? ' — ' + blocoClient.city : '') + '</span>' +
+        '</div>'
+      : '';
+    return blocoHeader + buildTableSection(bloco.items);
+  }).join('');
 
-  const qtyTotal = (doc.items || []).reduce((s: number, it: TimberItem) => s + calcDerived(it).qtyTotal, 0);
+  const qtyTotal = activeBlocos.reduce((s: number, b: Bloco) =>
+    s + b.items.reduce((ss: number, it: TimberItem) => ss + calcDerived(it).qtyTotal, 0), 0);
 
   // Conditional rows
   const freteRow = (type === 'romaneio' && (doc.freight || 0) > 0)
@@ -141,32 +198,8 @@ export function buildDocHTML(p: DocHTMLParams): string {
     '</td></tr></table></div>' +
 
     notesBar +
-
-    // Table
-    '<table style="margin-bottom:0;font-size:9px">' +
-    '<thead>' +
-    '<tr style="background:#1a5c34;color:#fff">' +
-    '<th style="' + TH + '" rowspan="2">Bitola<br>(cm)</th>' +
-    '<th style="' + TH + '" rowspan="2">Larg.<br>(cm)</th>' +
-    '<th style="' + TH + ';background:#155228;font-size:8px" colspan="4">Comprimento (m) — Qtd de Peças</th>' +
-    '<th style="' + TH + '" rowspan="2">Qtd<br>Pcs</th>' +
-    '<th style="' + TH + '" rowspan="2">Metros<br>Lin.</th>' +
-    '<th style="' + TH + '" rowspan="2">R$/m3</th>' +
-    '<th style="' + TH + '" rowspan="2">Med.<br>Comp.</th>' +
-    '<th style="' + TH + ';background:#2d7a4f" rowspan="2">M3</th>' +
-    '<th style="' + TH + ';background:#b45309" rowspan="2">VALOR</th>' +
-    '</tr>' +
-    '<tr style="background:#2d7a4f;color:#fff">' +
-    '<th style="' + TH + '">3,00</th><th style="' + TH + '">4,00</th><th style="' + TH + '">5,00</th><th style="' + TH + '">6,00</th>' +
-    '</tr></thead>' +
-    '<tbody>' + rows.join('') + emptyRows.join('') + '</tbody>' +
-    '<tfoot><tr style="background:#1a5c34;color:#fff;font-weight:bold">' +
-    '<td colspan="6" style="' + TD + '"></td>' +
-    '<td style="' + TD + ';text-align:center;font-size:11px">' + qtyTotal + '</td>' +
-    '<td colspan="3" style="' + TD + '"></td>' +
-    '<td style="' + TD + ';font-size:9px;color:#a7f3c0;font-style:italic;text-align:right;white-space:nowrap">Total m3: <span style="color:#86efac;font-weight:900;font-size:12px">' + totals.m3.toFixed(4) + '</span></td>' +
-    '<td style="' + TD + ';color:#fcd34d;font-weight:900;font-size:12px;text-align:right">' + fmt(totals.subtotal) + '</td>' +
-    '</tr></tfoot></table>';
+    // Tables (one per bloco)
+    tablesSections;
 
   // Build cheques HTML string
   const chequesHTML: string = cheques.length > 0 ? (
