@@ -11,6 +11,7 @@ interface TabelaPreco {
   nome: string;
   valorM3: number;
   rows: PrecoRow[];
+  descricao?: string;
 }
 
 interface Settings {
@@ -103,7 +104,10 @@ export function buildTabelaHTML(tabela: TabelaPreco, s: Settings): string {
 
     // Table title
     '<div style="background:#f0faf4;border:1px solid #1a5c34;border-top:none;padding:8px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">' +
+    '<div>' +
     '<span style="font-size:13px;font-weight:900;color:#1a5c34;text-transform:uppercase">' + tabela.nome + '</span>' +
+    (tabela.descricao ? '<div style="font-size:10px;color:#555;margin-top:2px">' + tabela.descricao + '</div>' : '') +
+    '</div>' +
     '<span style="font-size:11px;font-weight:bold;color:#555;background:#fff;border:1px solid #ccc;padding:2px 10px;border-radius:4px">Valor m³: <strong style="color:#1a5c34">' + fmt(tabela.valorM3) + '</strong></span>' +
     '</div>' +
 
