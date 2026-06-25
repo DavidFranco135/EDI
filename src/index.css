@@ -1,0 +1,59 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+body {
+  @apply font-sans antialiased bg-gray-100 text-gray-900;
+}
+
+/* ── Print / PDF ─────────────────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 6mm;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body {
+    background: white !important;
+    font-size: 10px !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .doc-container {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    page-break-inside: avoid;
+  }
+
+  /* Ensure table doesn't break across pages */
+  table {
+    page-break-inside: avoid;
+  }
+}
+
+/* PDF export class */
+.pdf-exporting {
+  width: 277mm !important; /* A4 landscape minus margins */
+  font-size: 10px !important;
+}
+
+/* Tabular numbers for financial data */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
