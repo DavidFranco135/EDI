@@ -18,6 +18,7 @@ interface TabelaPreco {
   valorM3: number;
   rows: PrecoRow[];
   collapsed: boolean;
+  descricao?: string;
 }
 
 function calcRow(r: PrecoRow) {
@@ -40,6 +41,7 @@ function newTabela(valorM3 = 1400): TabelaPreco {
     nome: `Tabela R$ ${valorM3.toLocaleString('pt-BR')}/m³`,
     valorM3,
     collapsed: false,
+    descricao: '',
     rows: [
       { id: '1', bitola: 1.7, largura: 30, comprimento: 3, valorM3 },
       { id: '2', bitola: 1.7, largura: 28, comprimento: 3, valorM3 },
@@ -176,6 +178,12 @@ export const TabelaPrecos: React.FC = () => {
                     className="p-1 text-green-200 hover:text-white transition-colors flex-shrink-0">
                     <Edit2 className="w-3 h-3" />
                   </button>
+                  <input
+                    value={tabela.descricao || ''}
+                    onChange={e => updateTabela(tabela.id, { descricao: e.target.value })}
+                    placeholder="Observação / identificação..."
+                    className="hidden md:block flex-1 min-w-0 px-2 py-1 bg-white/15 text-white placeholder:text-green-300 text-xs rounded border border-white/20 focus:border-white focus:bg-white/25 outline-none"
+                  />
                 </div>
               )}
             </div>
@@ -199,6 +207,18 @@ export const TabelaPrecos: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Descricao mobile */}
+          {!tabela.collapsed && (
+            <div className="md:hidden px-4 py-2 bg-green-600 border-b border-green-500">
+              <input
+                value={tabela.descricao || ''}
+                onChange={e => updateTabela(tabela.id, { descricao: e.target.value })}
+                placeholder="Observação / identificação..."
+                className="w-full px-2 py-1.5 bg-white/20 text-white placeholder:text-green-200 text-xs rounded border border-white/20 focus:border-white outline-none"
+              />
+            </div>
+          )}
 
           {/* Valor m³ global control */}
           {!tabela.collapsed && (
