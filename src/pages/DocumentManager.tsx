@@ -4,6 +4,7 @@ import { useApp } from '../store/AppContext';
 import { Document } from '../types';
 import { TimberCalculator } from '../components/TimberCalculator';
 import { calcDerived } from '../lib/calc';
+import { buildDocHTML } from '../lib/docHTML';
 import { ArrowLeft, Save, Printer, Plus, Share2 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -20,8 +21,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
 
   const nextNumber = () =>
     (state.documents.filter(d => d.type === type).length + 1)
-      .toString()
-      .padStart(3, '0');
+      .toString().padStart(3, '0');
 
   const [doc, setDoc] = useState<Partial<Document>>({
     type,
@@ -38,14 +38,12 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     commissionPct: state.settings.defaultCommissionPct,
     commissionValue: 0,
     settlement: 0,
-    paymentTerms: 'À VISTA',
     motorista: '',
-    supplier: '',
-    status: 'andamento' as const,
-    notes:
-      type === 'romaneio'
-        ? 'O FRETE SERÁ PAGO À VISTA AO TRANSPORTADOR NO ATO DA DESCARGA, DEDUZIDO DO MATERIAL. MANDAR O PAGAMENTO DA MADEIRA PELO MOTORISTA.'
-        : '',
+    status: 'andamento',
+    paymentTerms: 'À VISTA',
+    notes: type === 'romaneio'
+      ? 'O FRETE SERÁ PAGO À VISTA AO TRANSPORTADOR NO ATO DA DESCARGA, DEDUZIDO DO MATERIAL. MANDAR O PAGAMENTO DA MADEIRA PELO MOTORISTA.'
+      : '',
   });
 
   useEffect(() => {
@@ -55,7 +53,6 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     }
   }, [id]);
 
-  // Pre-fill romaneio from pedido
   useEffect(() => {
     if (fromPedidoId && type === 'romaneio') {
       const pedido = state.documents.find(d => d.id === fromPedidoId);
@@ -66,7 +63,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
           clientName: pedido.clientName,
           clientData: pedido.clientData,
           supplier: pedido.supplier || '',
-          items: pedido.items.map(i => ({ ...i, id: Math.random().toString(36).slice(2,9) })),
+          items: pedido.items.map(i => ({ ...i, id: Math.random().toString(36).slice(2, 9) })),
           paymentTerms: pedido.paymentTerms,
         }));
       }
@@ -86,14 +83,16 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
   }, [doc.items]);
 
   const commission = doc.commissionPct ? totals.subtotal * (doc.commissionPct / 100) : 0;
-  // frete e comissão são deduções independentes
-  const total =
-    type === 'romaneio'
-      ? totals.subtotal - (doc.freight || 0) - commission - (doc.settlement || 0)
-      : totals.subtotal;
+  const total = type === 'romaneio'
+    ? totals.subtotal - (doc.freight || 0) - commission - (doc.settlement || 0)
+    : totals.subtotal;
 
   const selectedClient = state.clients.find(c => c.id === doc.clientId);
-  const client = doc.clientData || selectedClient || {};
+  const client = (doc.clientData || selectedClient || {}) as Record<string, any>;
+
+  const displayDate = doc.date && !isNaN(new Date(doc.date).getTime())
+    ? format(new Date(doc.date + 'T12:00:00'), 'dd/MM/yyyy')
+    : '—';
 
   const handleClientSelect = (clientId: string) => {
     const c = state.clients.find(x => x.id === clientId);
@@ -110,7 +109,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     const finalDoc: Document = {
       ...doc,
       id: doc.id || Math.random().toString(36).slice(2, 11),
-      clientName: doc.clientName || (doc.clientData as any)?.name || '—',
+      clientName: doc.clientName || client?.name || '—',
       subtotal: totals.subtotal,
       totalM3: totals.m3,
       commissionValue: commission,
@@ -122,535 +121,60 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     navigate('/relatorios');
   };
 
-  const displayDate =
-    doc.date && !isNaN(new Date(doc.date).getTime())
-      ? format(new Date(doc.date + 'T12:00:00'), 'dd/MM/yyyy')
-      : '—';
+  const getHTML = () => buildDocHTML({
+    doc,
+    type,
+    totals,
+    commission,
+    total,
+    displayDate,
+    client,
+    settings: state.settings,
+  });
 
-  const s = state.settings;
-  const rows = (doc.items || []).map(item => ({ item, d: calcDerived(item) }));
-
-
-  const handleShare = async () => {
-    const title = `${type.toUpperCase()} Nº ${doc.number} — ${doc.clientName || ''}`;
-    const filename = `${type}-${doc.number}.pdf`;
-
-    // Build the print HTML (same as handlePrint but returned as string)
-    const printHTML = buildPrintHTML();
-
-    // Try to generate a PDF Blob using a hidden iframe + print-to-PDF trick
-    // On mobile browsers that support Web Share API with files
-    const canShareFiles = !!(navigator.share && (navigator as any).canShare);
-
-    if (canShareFiles) {
-      try {
-        // Create blob from HTML — browser will handle as PDF when printed
-        // Use a data URL approach for the share
-        const blob = new Blob([printHTML], { type: 'text/html' });
-        const htmlFile = new File([blob], filename.replace('.pdf', '.html'), { type: 'text/html' });
-
-        // Check if we can share files
-        if ((navigator as any).canShare({ files: [htmlFile] })) {
-          await navigator.share({
-            title,
-            files: [htmlFile],
-          });
-          return;
-        }
-      } catch {}
-    }
-
-    // Fallback: open print window (user saves as PDF manually)
-    // But first show a toast-style instruction
-    const win = window.open('', '_blank');
-    if (!win) {
-      alert('Permita pop-ups e tente novamente.');
-      return;
-    }
-    win.document.write(printHTML);
-    win.document.close();
-    // On mobile, show instructions overlay
-    setTimeout(() => {
-      try {
-        win.print();
-      } catch {}
-    }, 800);
-  };
-
-  const buildPrintHTML = (): string => {
-    const tableRows = rows.map(({ item, d }, i) => `
-      <tr style="background:${i % 2 === 0 ? '#fff' : '#f2faf5'}">
-        <td style="${TD_S}">${item.espessura}</td>
-        <td style="${TD_S}">${item.largura}</td>
-        <td style="${TD_S};background:#e8f5ee">${item.c3 || ''}</td>
-        <td style="${TD_S};background:#e8f5ee">${item.c4 || ''}</td>
-        <td style="${TD_S};background:#e8f5ee">${item.c5 || ''}</td>
-        <td style="${TD_S};background:#e8f5ee">${item.c6 || ''}</td>
-        <td style="${TD_S};font-weight:bold">${d.qtyTotal || ''}</td>
-        <td style="${TD_S}">${d.linearMeters.toFixed(3)}</td>
-        <td style="${TD_S};font-weight:bold">${item.pricePerM3 ? fmt(item.pricePerM3) : ''}</td>
-        <td style="${TD_S};font-style:italic">${d.avgLength.toFixed(2)}</td>
-        <td style="${TD_S};font-weight:bold;color:#1a5c34">${d.finalM3.toFixed(4)}</td>
-        <td style="${TD_S};font-weight:bold;text-align:right">${fmt(d.value)}</td>
-      </tr>
-    `).join('');
-
-    const minEmptyRows = Math.max(0, 10 - rows.length);
-    const emptyRows = Array.from({ length: minEmptyRows }).map((_, i) => `
-      <tr style="background:${(rows.length + i) % 2 === 0 ? '#fff' : '#f2faf5'}">
-        ${Array.from({ length: 12 }).map(() => `<td style="${TD_S};height:22px"></td>`).join('')}
-      </tr>
-    `).join('');
-
-    return \`<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>\${type.toUpperCase()} Nº \${doc.number}</title>
-<style>
-  @page { size: A4 portrait; margin: 8mm; }
-  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
-  html, body { height: 100%; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #000; background: #e8e8e8; padding: 12px; }
-  table { border-collapse: collapse; width: 100%; }
-  .page { background: #fff; border-radius: 8px; box-shadow: 0 2px 16px rgba(0,0,0,0.15); padding: 20px; width: 100%; max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; min-height: calc(100vh - 100px); }
-  .content { flex: 1; }
-  .print-btn { display: block; width: 100%; padding: 18px; background: #1a5c34; color: #fff; font-size: 18px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; margin-bottom: 16px; }
-  .print-btn:active { background: #155228; }
-  @media print {
-    body { padding: 0; background: #fff; font-size: 9px; }
-    .print-btn { display: none !important; }
-    .page { padding: 0; box-shadow: none; border-radius: 0; min-height: 100vh; }
-  }
-</style>
-</head>
-<body>
-<button class="print-btn" onclick="window.print()">⬇️ Salvar como PDF / Imprimir</button>
-<div class="page">
-<div class="content">
-
-<div style="background:#1a5c34;padding:14px 16px;border-radius:6px 6px 0 0">
-  <table>
-    <tr>
-      <td style="vertical-align:middle;width:70px;padding-right:12px">
-        <div style="width:62px;height:62px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:36px;text-align:center;line-height:62px">🌲</div>
-      </td>
-      <td style="vertical-align:middle">
-        <div style="font-size:clamp(14px,4vw,20px);font-weight:900;color:#fff;letter-spacing:1px;text-transform:uppercase">\${s.companyName}</div>
-        <div style="font-size:10px;color:#a7f3c0;font-weight:bold;text-transform:uppercase;letter-spacing:2px;margin-top:2px">\${s.companyNeighborhood}</div>
-        <div style="font-size:9px;color:#d1fae5;margin-top:3px">\${s.companyAddress} — \${s.companyCity} | CEP: \${s.companyCEP}</div>
-        <div style="font-size:9px;color:#d1fae5">TEL: \${s.companyPhone} | CNPJ: \${s.companyCNPJ} | \${s.companyEmail}</div>
-      </td>
-      <td style="vertical-align:middle;text-align:right;padding-left:12px;white-space:nowrap">
-        <div style="display:inline-block;background:#fff;color:#1a5c34;font-weight:900;font-size:20px;padding:6px 18px;text-transform:uppercase;border-radius:6px;letter-spacing:2px;margin-bottom:6px">\${type.toUpperCase()}</div>
-        <div style="color:#a7f3c0;font-size:10px;font-weight:bold">DATA: <span style="color:#fff">\${displayDate}</span></div>
-        <div style="color:#a7f3c0;font-size:10px;font-weight:bold">Nº <span style="color:#fff;font-size:16px;font-weight:900">\${doc.number}</span></div>
-      </td>
-    </tr>
-  </table>
-</div>
-
-<div style="border:1px solid #ccc;border-top:none;padding:8px 12px;margin-bottom:6px;background:#fafffe">
-  <table>
-    <tr>
-      <td style="width:58%;vertical-align:top;padding-right:12px">
-        <div style="margin-bottom:2px"><strong>CLIENTE:</strong> <span style="text-transform:uppercase;font-weight:900;font-size:12px;color:#1a5c34">\${doc.clientName || (client as any).name || '—'}</span></div>
-        \${(client as any).address ? \`<div><strong>ENDEREÇO:</strong> \${(client as any).address}\${(client as any).neighborhood ? ', ' + (client as any).neighborhood : ''}</div>\` : ''}
-        \${(client as any).city ? \`<div><strong>MUNICÍPIO:</strong> \${(client as any).city}\${(client as any).state ? ' — ' + (client as any).state : ''}</div>\` : ''}
-        \${(client as any).cep ? \`<div><strong>CEP:</strong> \${(client as any).cep}</div>\` : ''}
-        \${(client as any).cnpj ? \`<div><strong>CNPJ/CPF:</strong> \${(client as any).cnpj}</div>\` : ''}
-        \${(client as any).ie ? \`<div><strong>INS. EST.:</strong> \${(client as any).ie}</div>\` : ''}
-      </td>
-      <td style="vertical-align:top;border-left:1px dashed #ccc;padding-left:12px">
-        \${doc.supplier ? \`<div><strong>FORNECEDOR:</strong> <span style="font-weight:bold;text-transform:uppercase">\${doc.supplier}</span></div>\` : ''}
-        \${(client as any).phone ? \`<div><strong>FONE:</strong> \${(client as any).phone}</div>\` : ''}
-        <div><strong>COND. PAGTO:</strong> \${doc.paymentTerms || '—'}</div>
-        <div><strong>FRETE:</strong> INCLUSO</div>
-      </td>
-    </tr>
-  </table>
-</div>
-
-\${doc.notes ? \`<div style="background:#fff8f0;border:1px solid #f0a040;border-top:none;padding:4px 10px;font-size:9px;font-weight:bold;color:#b45309;text-transform:uppercase;margin-bottom:6px;text-align:center">\${doc.notes}</div>\` : ''}
-
-<table style="margin-bottom:0;font-size:9px">
-  <thead>
-    <tr style="background:#1a5c34;color:#fff">
-      <th style="\${TH_S}" rowspan="2">Bitola<br>(cm)</th>
-      <th style="\${TH_S}" rowspan="2">Larg.<br>(cm)</th>
-      <th style="\${TH_S};background:#155228;font-size:8px" colspan="4">Comprimento (m) — Qtd de Peças</th>
-      <th style="\${TH_S}" rowspan="2">Qtd<br>Pçs</th>
-      <th style="\${TH_S}" rowspan="2">Metros<br>Lin.</th>
-      <th style="\${TH_S}" rowspan="2">R$/m³</th>
-      <th style="\${TH_S}" rowspan="2">Méd.<br>Comp.</th>
-      <th style="\${TH_S};background:#2d7a4f" rowspan="2">M³</th>
-      <th style="\${TH_S};background:#b45309" rowspan="2">VALOR</th>
-    </tr>
-    <tr style="background:#2d7a4f;color:#fff">
-      <th style="\${TH_S}">3,00</th><th style="\${TH_S}">4,00</th><th style="\${TH_S}">5,00</th><th style="\${TH_S}">6,00</th>
-    </tr>
-  </thead>
-  <tbody>
-    \${tableRows}
-    \${emptyRows}
-  </tbody>
-  <tfoot>
-    <tr style="background:#1a5c34;color:#fff;font-weight:bold">
-      <td colspan="6" style="\${TD_S}"></td>
-      <td style="\${TD_S};text-align:center;font-size:11px">\${rows.reduce((s, r) => s + r.d.qtyTotal, 0)}</td>
-      <td colspan="3" style="\${TD_S}"></td>
-      <td style="\${TD_S};font-size:8px;color:#a7f3c0;font-style:italic;text-align:right;white-space:nowrap">Total m³: <span style="color:#86efac;font-weight:900;font-size:11px">\${totals.m3.toFixed(4)}</span></td>
-      <td style="\${TD_S};color:#fcd34d;font-weight:900;font-size:12px;text-align:right">\${fmt(totals.subtotal)}</td>
-    </tr>
-  </tfoot>
-</table>
-
-<table style="margin-top:8px;margin-bottom:8px">
-  <tr>
-    <td style="width:52%;vertical-align:top;padding-right:14px">
-      \${doc.notes ? \`<div style="background:#fff8f0;border:1px solid #f0c080;border-radius:4px;padding:6px 10px;font-size:9px;color:#7c4a00"><strong style="display:block;margin-bottom:2px;font-size:9px;text-transform:uppercase;color:#b45309">⚠ Observações:</strong>\${doc.notes}</div>\` : ''}
-    </td>
-    <td style="vertical-align:top">
-      <table style="border:2px solid #1a5c34;border-radius:4px;overflow:hidden;font-size:10px">
-        <tr style="background:#f0faf4">
-          <td style="\${SUMTD_S}"><strong>Total em M³</strong></td>
-          <td style="\${SUMTD_S};font-weight:bold;color:#1a5c34;text-align:right;font-size:12px">\${totals.m3.toFixed(4)} m³</td>
-        </tr>
-        <tr>
-          <td style="\${SUMTD_S}">Subtotal Madeira</td>
-          <td style="\${SUMTD_S};font-weight:bold;text-align:right">\${fmt(totals.subtotal)}</td>
-        </tr>
-        \${type === 'romaneio' ? \`
-        \${(doc.freight || 0) > 0 ? \`<tr style="background:#fff8f0"><td style="\${SUMTD_S}">– Frete</td><td style="\${SUMTD_S};font-weight:bold;text-align:right;color:#b45309">\${fmt(doc.freight || 0)}</td></tr>\` : ''}
-        \${commission > 0 ? \`<tr style="background:#fffbeb"><td style="\${SUMTD_S}">– Comissão</td><td style="\${SUMTD_S};font-weight:bold;text-align:right;color:#92400e">\${fmt(commission)}</td></tr>\` : ''}
-        \${(doc.settlement || 0) > 0 ? \`<tr style="background:#fff0f0"><td style="\${SUMTD_S}">– Acerto escritório</td><td style="\${SUMTD_S};font-weight:bold;text-align:right;color:#b91c1c">\${fmt(doc.settlement || 0)}</td></tr>\` : ''}
-        \` : ''}
-        <tr style="background:#1a5c34">
-          <td style="\${SUMTD_S};color:#fff;font-weight:900;font-size:13px;letter-spacing:0.5px">TOTAL A PAGAR</td>
-          <td style="\${SUMTD_S};color:#fcd34d;font-weight:900;font-size:16px;text-align:right">\${fmt(total)}</td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>
-
-</div>
-
-<div style="border-top:2px solid #1a5c34;margin-top:10px;padding-top:8px">
-  <table>
-    <tr>
-      <td style="width:33%;padding:6px 10px">
-        <div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">
-          <div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:3px">Cliente</div>
-          <div style="font-weight:900;font-size:11px;text-transform:uppercase;color:#1a5c34">\${doc.clientName || (client as any).name || '—'}</div>
-          \${(client as any).phone ? \`<div style="font-size:9px;color:#666;margin-top:2px">\${(client as any).phone}</div>\` : ''}
-        </div>
-      </td>
-      <td style="width:34%;padding:6px 10px">
-        <div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">
-          <div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:3px">Fornecedor / Fábrica</div>
-          <div style="font-weight:900;font-size:11px;text-transform:uppercase;color:#1a5c34">\${doc.supplier || '—'}</div>
-        </div>
-      </td>
-      <td style="width:33%;padding:6px 10px">
-        <div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">
-          <div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:3px">Motorista</div>
-          <div style="font-weight:900;font-size:11px;text-transform:uppercase;color:#1a5c34">\${doc.motorista || '—'}</div>
-        </div>
-      </td>
-    </tr>
-  </table>
-  <div style="text-align:center;margin-top:6px;font-size:8px;color:#aaa">
-    EDI – Gestão de Madeiras | Emitido em \${new Date().toLocaleDateString('pt-BR')}
-  </div>
-</div>
-</div>
-</body>
-</html>\`;
-  };
-
-  // Build complete print HTML - portrait A4, full page
   const handlePrint = () => {
     const win = window.open('', '_blank');
     if (!win) {
       alert('Pop-up bloqueado. Permita pop-ups para este site e tente novamente.');
       return;
     }
-
-    const minEmptyRows = Math.max(0, 10 - rows.length);
-
-    const tableRows = rows.map(({ item, d }, i) => `
-      <tr style="background:${i % 2 === 0 ? '#fff' : '#f2faf5'}">
-        <td style="${TD}">${item.espessura}</td>
-        <td style="${TD}">${item.largura}</td>
-        <td style="${TD};background:#e8f5ee">${item.c3 || ''}</td>
-        <td style="${TD};background:#e8f5ee">${item.c4 || ''}</td>
-        <td style="${TD};background:#e8f5ee">${item.c5 || ''}</td>
-        <td style="${TD};background:#e8f5ee">${item.c6 || ''}</td>
-        <td style="${TD};font-weight:bold">${d.qtyTotal || ''}</td>
-        <td style="${TD}">${d.linearMeters.toFixed(3)}</td>
-        <td style="${TD};font-weight:bold">${item.pricePerM3 ? fmt(item.pricePerM3) : ''}</td>
-        <td style="${TD};font-style:italic">${d.avgLength.toFixed(2)}</td>
-        <td style="${TD};font-weight:bold;color:#1a5c34">${d.finalM3.toFixed(4)}</td>
-        <td style="${TD};font-weight:bold;text-align:right">${fmt(d.value)}</td>
-      </tr>
-    `).join('');
-
-    const emptyRows = Array.from({ length: minEmptyRows }).map((_, i) => `
-      <tr style="background:${(rows.length + i) % 2 === 0 ? '#fff' : '#f2faf5'}">
-        ${Array.from({ length: 12 }).map(() => `<td style="${TD};height:22px"></td>`).join('')}
-      </tr>
-    `).join('');
-
-    win.document.write(`<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>${type.toUpperCase()} Nº ${doc.number}</title>
-<style>
-  @page { size: A4 portrait; margin: 8mm; }
-  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
-  html, body { height: 100%; }
-  body {
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 14px;
-    color: #000;
-    background: #fff;
-  }
-  table { border-collapse: collapse; width: 100%; }
-  .page {
-    display: flex;
-    flex-direction: column;
-    padding: 16px;
-  }
-  .content { flex: 1; }
-
-  /* ── TELA (celular e desktop) ── */
-  @media screen {
-    body {
-      background: #e8e8e8;
-      padding: 12px;
-      font-size: 15px;
-    }
-    .page {
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 2px 16px rgba(0,0,0,0.15);
-      padding: 20px;
-      width: 100%;
-      max-width: 700px;
-      margin: 0 auto;
-    }
-    .print-btn {
-      display: block;
-      width: 100%;
-      padding: 18px;
-      background: #1a5c34;
-      color: #fff;
-      font-size: 18px;
-      font-weight: bold;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      margin-bottom: 16px;
-      letter-spacing: 0.5px;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .print-btn:active { background: #155228; transform: scale(0.98); }
-
-    /* Aumenta fontes na tela para ficar legível no celular */
-    td, th, div, p, span { font-size: inherit; }
-  }
-
-  /* ── IMPRESSÃO / PDF ── */
-  @media print {
-    body {
-      padding: 0;
-      background: #fff;
-      font-size: 9px;
-    }
-    .print-btn { display: none !important; }
-    .page {
-      padding: 0;
-      box-shadow: none;
-      border-radius: 0;
-    }
-  }
-</style>
-</head>
-<body>
-<button class="print-btn" onclick="window.print()">⬇️ Salvar como PDF / Imprimir</button>
-
-<div class="page">
-<div class="content">
-
-<!-- ═══ LOGO / CABEÇALHO ═══ -->
-<div style="background:#1a5c34;padding:14px 16px;border-radius:6px 6px 0 0;margin-bottom:0">
-  <table>
-    <tr>
-      <td style="vertical-align:middle;width:70px;padding-right:12px">
-        <div style="width:62px;height:62px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:36px;text-align:center;line-height:62px">🌲</div>
-      </td>
-      <td style="vertical-align:middle">
-        <div style="font-size:clamp(14px,4vw,20px);font-weight:900;color:#fff;letter-spacing:1px;text-transform:uppercase">${s.companyName}</div>
-        <div style="font-size:10px;color:#a7f3c0;font-weight:bold;text-transform:uppercase;letter-spacing:2px;margin-top:2px">${s.companyNeighborhood}</div>
-        <div style="font-size:9px;color:#d1fae5;margin-top:3px">${s.companyAddress} — ${s.companyCity} | CEP: ${s.companyCEP}</div>
-        <div style="font-size:9px;color:#d1fae5">TEL: ${s.companyPhone} | CNPJ: ${s.companyCNPJ} | ${s.companyEmail}</div>
-      </td>
-      <td style="vertical-align:middle;text-align:right;padding-left:12px;white-space:nowrap">
-        <div style="display:inline-block;background:#fff;color:#1a5c34;font-weight:900;font-size:20px;padding:6px 18px;text-transform:uppercase;border-radius:6px;letter-spacing:2px;margin-bottom:6px">${type.toUpperCase()}</div>
-        <div style="color:#a7f3c0;font-size:10px;font-weight:bold">DATA: <span style="color:#fff">${displayDate}</span></div>
-        <div style="color:#a7f3c0;font-size:10px;font-weight:bold">Nº <span style="color:#fff;font-size:16px;font-weight:900">${doc.number}</span></div>
-      </td>
-    </tr>
-  </table>
-</div>
-
-<!-- ═══ DADOS CLIENTE ═══ -->
-<div style="border:1px solid #ccc;border-top:none;padding:8px 12px;margin-bottom:6px;background:#fafffe">
-  <table>
-    <tr>
-      <td style="width:58%;vertical-align:top;padding-right:12px">
-        <div style="margin-bottom:2px"><strong>CLIENTE:</strong> <span style="text-transform:uppercase;font-weight:900;font-size:12px;color:#1a5c34">${doc.clientName || (client as any).name || '—'}</span></div>
-        ${(client as any).address ? `<div><strong>ENDEREÇO:</strong> ${(client as any).address}${(client as any).neighborhood ? ', ' + (client as any).neighborhood : ''}</div>` : ''}
-        ${(client as any).city ? `<div><strong>MUNICÍPIO:</strong> ${(client as any).city}${(client as any).state ? ' — ' + (client as any).state : ''}</div>` : ''}
-        ${(client as any).cep ? `<div><strong>CEP:</strong> ${(client as any).cep}</div>` : ''}
-        ${(client as any).cnpj ? `<div><strong>CNPJ/CPF:</strong> ${(client as any).cnpj}</div>` : ''}
-        ${(client as any).ie ? `<div><strong>INS. EST.:</strong> ${(client as any).ie}</div>` : ''}
-      </td>
-      <td style="vertical-align:top;border-left:1px dashed #ccc;padding-left:12px">
-        ${doc.supplier ? `<div><strong>FORNECEDOR:</strong> <span style="font-weight:bold;text-transform:uppercase">${doc.supplier}</span></div>` : ''}
-        ${(client as any).phone ? `<div><strong>FONE:</strong> ${(client as any).phone}</div>` : ''}
-        <div><strong>COND. PAGTO:</strong> ${doc.paymentTerms || '—'}</div>
-        <div><strong>FRETE:</strong> INCLUSO</div>
-      </td>
-    </tr>
-  </table>
-</div>
-
-${doc.notes ? `<div style="background:#fff8f0;border:1px solid #f0a040;border-top:none;padding:4px 10px;font-size:9px;font-weight:bold;color:#b45309;text-transform:uppercase;margin-bottom:6px;text-align:center">${doc.notes}</div>` : ''}
-
-<!-- ═══ TABELA ═══ -->
-<table style="margin-bottom:0;font-size:9px">
-  <thead>
-    <tr style="background:#1a5c34;color:#fff">
-      <th style="${TH}" rowspan="2">Bitola<br>(cm)</th>
-      <th style="${TH}" rowspan="2">Larg.<br>(cm)</th>
-      <th style="${TH};background:#155228;font-size:8px" colspan="4">Comprimento (m) — Qtd de Peças</th>
-      <th style="${TH}" rowspan="2">Qtd<br>Pçs</th>
-      <th style="${TH}" rowspan="2">Metros<br>Lin.</th>
-      <th style="${TH}" rowspan="2">R$/m³</th>
-      <th style="${TH}" rowspan="2">Méd.<br>Comp.</th>
-      <th style="${TH};background:#2d7a4f" rowspan="2">M³</th>
-      <th style="${TH};background:#b45309" rowspan="2">VALOR</th>
-    </tr>
-    <tr style="background:#2d7a4f;color:#fff">
-      <th style="${TH}">3,00</th>
-      <th style="${TH}">4,00</th>
-      <th style="${TH}">5,00</th>
-      <th style="${TH}">6,00</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${tableRows}
-    ${emptyRows}
-  </tbody>
-  <tfoot>
-    <tr style="background:#1a5c34;color:#fff;font-weight:bold">
-      <td colspan="6" style="${TD}"></td>
-      <td style="${TD};text-align:center;font-size:11px">${rows.reduce((s, r) => s + r.d.qtyTotal, 0)}</td>
-      <td colspan="3" style="${TD}"></td>
-      <td style="${TD};font-size:9px;color:#a7f3c0;font-style:italic;text-align:right;white-space:nowrap">Total m³: <span style="color:#86efac;font-weight:900;font-size:12px">${totals.m3.toFixed(4)}</span></td>
-      <td style="${TD};color:#fcd34d;font-weight:900;font-size:12px;text-align:right">${fmt(totals.subtotal)}</td>
-    </tr>
-  </tfoot>
-</table>
-
-<!-- ═══ TOTAIS + OBS ═══ -->
-<table style="margin-top:8px;margin-bottom:8px">
-  <tr>
-    <td style="width:52%;vertical-align:top;padding-right:14px">
-      ${doc.notes ? `
-      <div style="background:#fff8f0;border:1px solid #f0c080;border-radius:4px;padding:6px 10px;font-size:9px;color:#7c4a00">
-        <strong style="display:block;margin-bottom:2px;font-size:9px;text-transform:uppercase;color:#b45309">⚠ Observações:</strong>
-        ${doc.notes}
-      </div>` : ''}
-    </td>
-    <td style="vertical-align:top">
-      <table style="border:2px solid #1a5c34;border-radius:4px;overflow:hidden;font-size:10px">
-        <tr style="background:#f0faf4">
-          <td style="${SUMTD}"><strong>Total em M³</strong></td>
-          <td style="${SUMTD};font-weight:bold;color:#1a5c34;text-align:right;font-size:12px">${totals.m3.toFixed(4)} m³</td>
-        </tr>
-        <tr>
-          <td style="${SUMTD}">Subtotal Madeira</td>
-          <td style="${SUMTD};font-weight:bold;text-align:right">${fmt(totals.subtotal)}</td>
-        </tr>
-        ${type === 'romaneio' ? `
-        ${(doc.freight || 0) > 0 ? `
-        <tr style="background:#fff8f0">
-          <td style="${SUMTD}">– Frete</td>
-          <td style="${SUMTD};font-weight:bold;text-align:right;color:#b45309">${fmt(doc.freight || 0)}</td>
-        </tr>` : ''}
-        ${commission > 0 ? `
-        <tr style="background:#fffbeb">
-          <td style="${SUMTD}">– Comissão</td>
-          <td style="${SUMTD};font-weight:bold;text-align:right;color:#92400e">${fmt(commission)}</td>
-        </tr>` : ''}
-        ${(doc.settlement || 0) > 0 ? `
-        <tr style="background:#fff0f0">
-          <td style="${SUMTD}">– Acerto escritório</td>
-          <td style="${SUMTD};font-weight:bold;text-align:right;color:#b91c1c">${fmt(doc.settlement || 0)}</td>
-        </tr>` : ''}` : ''}
-        <tr style="background:#1a5c34">
-          <td style="${SUMTD};color:#fff;font-weight:900;font-size:13px;letter-spacing:0.5px">TOTAL A PAGAR</td>
-          <td style="${SUMTD};color:#fcd34d;font-weight:900;font-size:16px;text-align:right">${fmt(total)}</td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>
-
-</div><!-- end content -->
-
-<!-- ═══ RODAPÉ — NOMES ═══ -->
-<div style="border-top:2px solid #1a5c34;margin-top:10px;padding-top:8px">
-  <table>
-    <tr>
-      <td style="width:33%;padding:6px 10px">
-        <div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">
-          <div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:3px">Cliente</div>
-          <div style="font-weight:900;font-size:11px;text-transform:uppercase;color:#1a5c34">${doc.clientName || (client as any).name || '—'}</div>
-          ${(client as any).phone ? `<div style="font-size:9px;color:#666;margin-top:2px">${(client as any).phone}</div>` : ''}
-        </div>
-      </td>
-      <td style="width:34%;padding:6px 10px">
-        <div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">
-          <div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:3px">Fornecedor / Fábrica</div>
-          <div style="font-weight:900;font-size:11px;text-transform:uppercase;color:#1a5c34">${type === 'pedido' && doc.supplier ? doc.supplier : (doc.supplier || '—')}</div>
-        </div>
-      </td>
-      <td style="width:33%;padding:6px 10px">
-        <div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">
-          <div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:3px">Motorista</div>
-          <div style="font-weight:900;font-size:11px;text-transform:uppercase;color:#1a5c34">${doc.motorista || '—'}</div>
-        </div>
-      </td>
-    </tr>
-  </table>
-  <div style="text-align:center;margin-top:6px;font-size:8px;color:#aaa">
-    EDI – Gestão de Madeiras | Emitido em ${new Date().toLocaleDateString('pt-BR')}
-  </div>
-</div>
-
-</div><!-- end page -->
-</body>
-</html>`);
-
+    win.document.write(getHTML());
     win.document.close();
   };
+
+  const handleShare = async () => {
+    const title = `${type.toUpperCase()} Nº ${doc.number} — ${doc.clientName || ''}`;
+    const html = getHTML();
+    const blob = new Blob([html], { type: 'text/html' });
+    const file = new File([blob], `${type}-${doc.number}.html`, { type: 'text/html' });
+
+    if (navigator.share) {
+      try {
+        const shareData: ShareData = { title, files: [file] };
+        if ((navigator as any).canShare && (navigator as any).canShare(shareData)) {
+          await navigator.share(shareData);
+          return;
+        }
+        await navigator.share({
+          title,
+          text: [
+            `${type.toUpperCase()} Nº ${doc.number}`,
+            `Cliente: ${doc.clientName || '—'}`,
+            doc.supplier ? `Fornecedor: ${doc.supplier}` : '',
+            `Data: ${displayDate}`,
+            `Total M³: ${totals.m3.toFixed(4)}`,
+            `Total: ${fmt(total)}`,
+            doc.motorista ? `Motorista: ${doc.motorista}` : '',
+          ].filter(Boolean).join('\n'),
+        });
+        return;
+      } catch {}
+    }
+    await navigator.clipboard.writeText(title).catch(() => {});
+    alert('Para compartilhar o PDF: use o botão Imprimir / PDF, salve como PDF e compartilhe o arquivo.');
+  };
+
+  const s = state.settings;
 
   return (
     <div className="space-y-5 pb-32">
@@ -670,22 +194,16 @@ ${doc.notes ? `<div style="background:#fff8f0;border:1px solid #f0a040;border-to
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleShare}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-md transition-all active:scale-95"
-          >
+          <button onClick={handleShare}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-md transition-all active:scale-95">
             <Share2 className="w-4 h-4" /> Compartilhar
           </button>
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-green-700 text-white rounded-xl text-sm font-bold hover:bg-green-800 shadow-md transition-all active:scale-95"
-          >
+          <button onClick={handlePrint}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-green-700 text-white rounded-xl text-sm font-bold hover:bg-green-800 shadow-md transition-all active:scale-95">
             <Printer className="w-4 h-4" /> Imprimir / PDF
           </button>
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-800 text-white rounded-xl text-sm font-bold hover:bg-gray-900 shadow-md transition-all active:scale-95"
-          >
+          <button onClick={handleSave}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-800 text-white rounded-xl text-sm font-bold hover:bg-gray-900 shadow-md transition-all active:scale-95">
             <Save className="w-4 h-4" /> Salvar
           </button>
         </div>
@@ -737,6 +255,13 @@ ${doc.notes ? `<div style="background:#fff8f0;border:1px solid #f0a040;border-to
             className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
         </div>
 
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nome do Motorista</label>
+          <input value={doc.motorista || ''} onChange={e => setDoc(p => ({ ...p, motorista: e.target.value }))}
+            placeholder="Ex: João da Silva"
+            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+        </div>
+
         {type === 'romaneio' && <>
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Frete (R$)</label>
@@ -755,16 +280,10 @@ ${doc.notes ? `<div style="background:#fff8f0;border:1px solid #f0a040;border-to
           </div>
         </>}
 
-        <div className="space-y-1 md:col-span-2">
+        <div className="space-y-1 md:col-span-2 lg:col-span-4">
           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Observações</label>
           <textarea value={doc.notes || ''} onChange={e => setDoc(p => ({ ...p, notes: e.target.value }))}
             className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none resize-none" rows={2} />
-        </div>
-        <div className="space-y-1 md:col-span-2">
-          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nome do Motorista</label>
-          <input value={doc.motorista || ''} onChange={e => setDoc(p => ({ ...p, motorista: e.target.value }))}
-            placeholder="Ex: João da Silva"
-            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
         </div>
       </div>
 
@@ -815,10 +334,3 @@ ${doc.notes ? `<div style="background:#fff8f0;border:1px solid #f0a040;border-to
     </div>
   );
 };
-
-const TH = 'border:1px solid #2d7a4f;padding:4px 5px;text-align:center;font-weight:bold;font-size:11px';
-const TH_S = 'border:1px solid #2d7a4f;padding:3px 4px;text-align:center;font-weight:bold;font-size:9px';
-const TD_S = 'border:1px solid #ccc;padding:2px 4px;text-align:center;font-size:9px';
-const SUMTD_S = 'border:1px solid #ddd;padding:5px 10px;font-size:10px';
-const TD = 'border:1px solid #ccc;padding:3px 5px;text-align:center;font-size:11px';
-const SUMTD = 'border:1px solid #ddd;padding:6px 12px;font-size:12px';
