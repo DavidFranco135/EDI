@@ -40,7 +40,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
         '<td style="' + TD + ';font-weight:bold">' + (d.qtyTotal || '') + '</td>' +
         '<td style="' + TD + '">' + d.linearMeters.toFixed(3) + '</td>' +
         '<td style="' + TD + ';font-weight:bold">' + (item.pricePerM3 ? fmt(item.pricePerM3) : '') + '</td>' +
-        '<td style="' + TD + ';font-style:italic">' + d.avgLength.toFixed(2) + '</td>' +
+        '<td style="' + TD + ';font-weight:bold;color:#444">' + (d.precoUnitario > 0 ? d.precoUnitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—') + '</td>' +
         '<td style="' + TD + ';font-weight:bold;color:#1a5c34">' + d.finalM3.toFixed(4) + '</td>' +
         '<td style="' + TD + ';font-weight:bold;text-align:right">' + fmt(d.value) + '</td>' +
         '</tr>'
@@ -78,7 +78,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
       '<th style="' + TH + '" rowspan="2">Qtd<br>Pcs</th>' +
       '<th style="' + TH + '" rowspan="2">Metros<br>Lin.</th>' +
       '<th style="' + TH + '" rowspan="2">R$/m3</th>' +
-      '<th style="' + TH + '" rowspan="2">Med.<br>Comp.</th>' +
+      '<th style="' + TH + '" rowspan="2">Preco<br>Unit.</th>' +
       '<th style="' + TH + ';background:#2d7a4f" rowspan="2">M3</th>' +
       '<th style="' + TH + ';background:#b45309" rowspan="2">VALOR</th>' +
       '</tr>' +
