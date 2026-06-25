@@ -11,7 +11,8 @@ const C_WARM   = '#FAFAF8';   // warm white — row bg
 const C_CHAR   = '#2D2D2D';   // charcoal — text
 const C_GOLDBG = '#FDF8EC';   // soft gold bg — totals highlight
 
-const TH = 'border:1px solid ' + C_MED + ';padding:5px 6px;text-align:center;font-weight:bold;font-size:10px;background:' + C_DARK + ';color:#fff';
+// TH is computed inside buildDocHTML using TH_BG/TH_TXT
+const TH_BASE = 'padding:5px 6px;text-align:center;font-weight:bold;font-size:10px';
 const TD = 'border:1px solid #ddd;padding:3px 6px;text-align:center;font-size:10px;color:' + C_CHAR;
 const SUMTD = 'border:1px solid #e0e0e0;padding:7px 14px;font-size:11px;color:' + C_CHAR;
 
@@ -30,14 +31,41 @@ interface DocHTMLParams {
   settings: Record<string, any>;
   cheques?: Cheque[];
   blocos?: Bloco[];
+  eco?: boolean;  // economic print mode — no color backgrounds
 }
 
 export function buildDocHTML(p: DocHTMLParams): string {
-  const { doc, type, totals, commission, total, displayDate, client, settings: s, cheques = [], blocos = [] } = p;
+  const { doc, type, totals, commission, total, displayDate, client, settings: s, cheques = [], blocos = [], eco = false } = p;
+
+  // Eco overrides — white backgrounds, only text/borders in color
+  const H_BG   = eco ? '#fff' : C_DARK;      // header bg
+  const H_TXT  = eco ? C_DARK : '#fff';       // header text
+  const TH_BG  = eco ? '#fff' : C_DARK;       // table header bg
+  const TH_TXT = eco ? C_DARK : '#fff';       // table header text
+  const TH_MED = eco ? '#fff' : C_MED;        // sub-header bg
+  const ROW1   = eco ? '#fff' : C_WARM;       // row bg
+  const ROW2   = eco ? '#fff' : C_SAGE;       // row alt bg
+  const GOLD_B = eco ? '#fff' : C_GOLD;       // gold badge bg
+  const GOLD_T = eco ? C_DARK : C_DARK;       // gold badge text
+  const VAL_BG = eco ? '#fff' : C_GOLDBG;    // valor cell bg
+  const M3_BG  = eco ? '#fff' : '#f0faf4';   // m3 cell bg
+  const SUM_BG = eco ? '#fff' : C_SAGE;      // summary row bg
+  const TOT_BG = eco ? '#fff' : C_DARK;      // total row bg
+  const TOT_T  = eco ? C_DARK : '#fff';      // total row text
+  const TPAY_BG= eco ? '#fff' : C_GOLD;      // total a pagar bg
+  const TPAY_T = eco ? C_DARK : C_DARK;      // total a pagar text
+  const BLOC_BG= eco ? '#fff' : C_DARK;      // bloco header bg
+  const BLOC_T = eco ? C_DARK : '#fff';      // bloco header text
+  const BLOC_G = eco ? C_DARK : C_GOLD;      // bloco gold accent
+  const FOOT_BG= eco ? '#fff' : C_SAGE;      // footer box bg
+
+  // Dynamic TH/TD using eco-aware vars
+  const TH = 'border:1px solid ' + C_MED + ';' + TH_BASE + ';background:' + TH_BG + ';color:' + TH_TXT;
+
   function buildItemRows(items: TimberItem[]): string {
     const rows = items.map((item: TimberItem, i: number) => {
       const d = calcDerived(item);
-      const bg = i % 2 === 0 ? C_WARM : C_SAGE;
+      const bg = i % 2 === 0 ? ROW1 : ROW2;
       return (
         '<tr style="background:' + bg + '">' +
         '<td style="' + TD + '">' + item.espessura + '</td>' +
@@ -50,14 +78,14 @@ export function buildDocHTML(p: DocHTMLParams): string {
         '<td style="' + TD + '">' + d.linearMeters.toFixed(3) + '</td>' +
         '<td style="' + TD + ';font-weight:bold">' + (item.pricePerM3 ? fmt(item.pricePerM3) : '') + '</td>' +
         '<td style="' + TD + ';font-weight:bold;color:#444">' + (d.precoUnitario > 0 ? d.precoUnitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—') + '</td>' +
-        '<td style="border:1px solid #c8e6d8;padding:3px 6px;text-align:center;font-size:10px;font-weight:bold;color:' + C_DARK + ';background:#f0faf4">' + d.finalM3.toFixed(4) + '</td>' +
-        '<td style="border:1px solid #e8d090;padding:3px 6px;text-align:right;font-size:10px;color:' + C_DARK + ';font-weight:bold;background:' + C_GOLDBG + '">' + fmt(d.value) + '</td>' +
+        '<td style="border:1px solid #c8e6d8;padding:3px 6px;text-align:center;font-size:10px;font-weight:bold;color:' + C_DARK + ';background:' + M3_BG + '">' + d.finalM3.toFixed(4) + '</td>' +
+        '<td style="border:1px solid #e8d090;padding:3px 6px;text-align:right;font-size:10px;color:' + C_DARK + ';font-weight:bold;background:' + VAL_BG + '">' + fmt(d.value) + '</td>' +
         '</tr>'
       );
     });
     const minEmpty = Math.max(0, 5 - rows.length);
     const empty = Array.from({ length: minEmpty }).map((_, i) => {
-      const bg = (rows.length + i) % 2 === 0 ? C_WARM : C_SAGE;
+      const bg = (rows.length + i) % 2 === 0 ? ROW1 : ROW2;
       return '<tr style="background:' + bg + '">' +
         Array.from({ length: 12 }).map(() => '<td style="' + TD + ';height:20px"></td>').join('') +
         '</tr>';
@@ -83,24 +111,24 @@ export function buildDocHTML(p: DocHTMLParams): string {
       '<tr style="background:#1a5c34;color:#fff">' +
       '<th style="' + TH + '" rowspan="2">Bitola<br>(cm)</th>' +
       '<th style="' + TH + '" rowspan="2">Larg.<br>(cm)</th>' +
-      '<th style="' + TH + ';background:' + C_MED + ';font-size:8px;letter-spacing:0.5px" colspan="4">Comprimento (m) — Qtd de Peças</th>' +
+      '<th style="' + TH + ';background:' + TH_MED + ';color:' + TH_TXT + ';font-size:8px;letter-spacing:0.5px" colspan="4">Comprimento (m) — Qtd de Peças</th>' +
       '<th style="' + TH + '" rowspan="2">Qtd<br>Pcs</th>' +
       '<th style="' + TH + '" rowspan="2">Metros<br>Lin.</th>' +
       '<th style="' + TH + '" rowspan="2">R$/m3</th>' +
       '<th style="' + TH + '" rowspan="2">Preco<br>Unit.</th>' +
-      '<th style="' + TH + ';background:' + C_MED + '" rowspan="2">M³</th>' +
+      '<th style="border:1px solid ' + C_MED + ';padding:5px 6px;text-align:center;font-weight:bold;font-size:10px;background:' + TH_MED + ';color:' + TH_TXT + '" rowspan="2">M³</th>' +
       '<th style="border:1px solid ' + C_GOLD + ';padding:5px 6px;text-align:center;font-weight:bold;font-size:10px;background:' + C_GOLD + ';color:' + C_DARK + '" rowspan="2">VALOR</th>' +
       '</tr>' +
-      '<tr style="background:' + C_MED + ';color:#fff">' +
+      '<tr style="background:' + TH_MED + ';color:' + TH_TXT + '">' +
       '<th style="' + TH + '">3,00</th><th style="' + TH + '">4,00</th><th style="' + TH + '">5,00</th><th style="' + TH + '">6,00</th>' +
       '</tr></thead>' +
       '<tbody>' + buildItemRows(items) + '</tbody>' +
-      '<tfoot><tr style="background:' + C_DARK + ';color:#fff;font-weight:bold;border-top:3px solid ' + C_GOLD + '">' +
+      '<tfoot><tr style="background:' + TOT_BG + ';color:' + TOT_T + ';font-weight:bold;border-top:3px solid ' + C_GOLD + '">' +
       '<td colspan="6" style="' + TD + '"></td>' +
       '<td style="' + TD + ';text-align:center;font-size:11px">' + qtyT + '</td>' +
       '<td colspan="3" style="' + TD + '"></td>' +
-      '<td style="border:1px solid rgba(255,255,255,0.2);padding:3px 6px;text-align:right;font-size:9px;color:rgba(255,255,255,0.7)">Total m³: <span style="color:#fff;font-weight:900;font-size:12px">' + m3T.toFixed(4) + '</span></td>' +
-      '<td style="border:1px solid ' + C_GOLD + ';padding:3px 6px;text-align:right;font-size:12px;font-weight:900;background:' + C_GOLD + ';color:' + C_DARK + '">' + fmt(valT) + '</td>' +
+      '<td style="border:1px solid rgba(255,255,255,0.2);padding:3px 6px;text-align:right;font-size:9px;color:' + (eco ? '#555' : 'rgba(255,255,255,0.7)') + '">Total m³: <span style="color:' + TOT_T + ';font-weight:900;font-size:12px">' + m3T.toFixed(4) + '</span></td>' +
+      '<td style="border:1px solid ' + C_GOLD + ';padding:3px 6px;text-align:right;font-size:12px;font-weight:900;background:' + C_GOLD + ';color:' + TPAY_BG + ';color:' + TPAY_T + ';border:1px solid ' + C_GOLD + '">' + fmt(valT) + '</td>' +
       '</tr></tfoot></table>'
     );
   }
@@ -110,9 +138,9 @@ export function buildDocHTML(p: DocHTMLParams): string {
     const bc = bloco.clientData as any || {};
     const blocoClient = bc;
     const blocoHeader = isMultiBloco
-      ? '<div style="background:' + C_DARK + ';border-radius:6px 6px 0 0;padding:6px 12px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid ' + C_GOLD + '">' +
-        '<span style="font-weight:900;font-size:11px;color:#fff;text-transform:uppercase;letter-spacing:1px">&#127970; ' + (bloco.label || 'Bloco') + '</span>' +
-        '<span style="font-size:10px;color:' + C_GOLD + ';font-weight:bold">' + (bloco.clientName || '') + (blocoClient.city ? ' — ' + blocoClient.city : '') + '</span>' +
+      ? '<div style="background:' + BLOC_BG + ';border:1px solid ' + C_DARK + ';border-radius:6px 6px 0 0;padding:6px 12px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid ' + C_GOLD + '">' +
+        '<span style="font-weight:900;font-size:11px;color:' + BLOC_T + ';text-transform:uppercase;letter-spacing:1px">&#127970; ' + (bloco.label || 'Bloco') + '</span>' +
+        '<span style="font-size:10px;color:' + BLOC_G + ';font-weight:bold">' + (bloco.clientName || '') + (blocoClient.city ? ' — ' + blocoClient.city : '') + '</span>' +
         '</div>'
       : '';
     return blocoHeader + buildTableSection(bloco.items);
@@ -178,19 +206,19 @@ export function buildDocHTML(p: DocHTMLParams): string {
     '<div class="page"><div class="content">\n' +
 
     // Header
-    '<div style="background:' + C_DARK + ';padding:16px 18px;border-radius:8px 8px 0 0;border-bottom:3px solid ' + C_GOLD + '">' +
+    '<div style="background:' + H_BG + ';padding:16px 18px;border-radius:8px 8px 0 0;border-bottom:3px solid ' + C_GOLD + '">' +
     '<table><tr>' +
     '<td style="vertical-align:middle;width:70px;padding-right:12px"><div style="width:62px;height:62px;background:#fff;border-radius:8px;font-size:36px;text-align:center;line-height:62px">&#127794;</div></td>' +
     '<td style="vertical-align:middle">' +
-    '<div style="font-size:18px;font-weight:900;color:#fff;text-transform:uppercase">' + s.companyName + '</div>' +
-    '<div style="font-size:10px;color:#a7f3c0;font-weight:bold;text-transform:uppercase;letter-spacing:2px;margin-top:2px">' + s.companyNeighborhood + '</div>' +
-    '<div style="font-size:9px;color:#d1fae5;margin-top:3px">' + s.companyAddress + ' — ' + s.companyCity + ' | CEP: ' + s.companyCEP + '</div>' +
-    '<div style="font-size:9px;color:#d1fae5">TEL: ' + s.companyPhone + ' | CNPJ: ' + s.companyCNPJ + ' | ' + s.companyEmail + '</div>' +
+    '<div style="font-size:18px;font-weight:900;color:' + H_TXT + ';text-transform:uppercase">' + s.companyName + '</div>' +
+    '<div style="font-size:10px;color:' + (eco ? C_MED : '#a7f3c0') + ';font-weight:bold;text-transform:uppercase;letter-spacing:2px;margin-top:2px">' + s.companyNeighborhood + '</div>' +
+    '<div style="font-size:9px;color:' + (eco ? '#555' : '#d1fae5') + ';margin-top:3px">' + s.companyAddress + ' — ' + s.companyCity + ' | CEP: ' + s.companyCEP + '</div>' +
+    '<div style="font-size:9px;color:' + (eco ? '#555' : '#d1fae5') + '">TEL: ' + s.companyPhone + ' | CNPJ: ' + s.companyCNPJ + ' | ' + s.companyEmail + '</div>' +
     '</td>' +
     '<td style="vertical-align:middle;text-align:right;padding-left:12px;white-space:nowrap">' +
     '<div style="display:inline-block;background:#fff;color:#1a5c34;font-weight:900;font-size:20px;padding:6px 18px;text-transform:uppercase;border-radius:6px;margin-bottom:6px">' + type.toUpperCase() + '</div>' +
-    '<div style="color:#a7f3c0;font-size:10px;font-weight:bold">DATA: <span style="color:#fff">' + displayDate + '</span></div>' +
-    '<div style="color:#a7f3c0;font-size:10px;font-weight:bold">N&ordm; <span style="color:#fff;font-size:16px;font-weight:900">' + doc.number + '</span></div>' +
+    '<div style="color:' + (eco ? C_MED : '#a7f3c0') + ';font-size:10px;font-weight:bold">DATA: <span style="color:' + H_TXT + '">' + displayDate + '</span></div>' +
+    '<div style="color:' + (eco ? C_MED : '#a7f3c0') + ';font-size:10px;font-weight:bold">N&ordm; <span style="color:' + H_TXT + ';font-size:16px;font-weight:900">' + doc.number + '</span></div>' +
     '</td></tr></table></div>' +
 
     // Client data
@@ -240,11 +268,11 @@ export function buildDocHTML(p: DocHTMLParams): string {
       '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:4px">Cheques / Parcelas</div>' +
       chequesHTML + '</td>') : '') +
     '<td style="vertical-align:top;' + (chequesHTML ? 'width:45%' : 'width:100%') + '">' +
-    '<table style="border:2px solid ' + C_DARK + ';border-radius:6px;overflow:hidden;font-size:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1)">' +
-    '<tr style="background:' + C_SAGE + '"><td style="' + SUMTD + '"><strong style="color:' + C_DARK + '">Total em M³</strong></td><td style="' + SUMTD + ';font-weight:bold;color:' + C_DARK + ';text-align:right;font-size:13px">' + totals.m3.toFixed(4) + ' m³</td></tr>' +
+    '<table style="border:2px solid ' + C_DARK + ';border-radius:6px;overflow:hidden;font-size:10px">' +
+    '<tr style="background:' + SUM_BG + '"><td style="' + SUMTD + '"><strong style="color:' + C_DARK + '">Total em M³</strong></td><td style="' + SUMTD + ';font-weight:bold;color:' + C_DARK + ';text-align:right;font-size:13px">' + totals.m3.toFixed(4) + ' m³</td></tr>' +
     '<tr><td style="' + SUMTD + '">Subtotal Madeira</td><td style="' + SUMTD + ';font-weight:bold;text-align:right">' + fmt(totals.subtotal) + '</td></tr>' +
     freteRow + commRow + settlRow +
-    '<tr style="background:' + C_DARK + ';border-top:3px solid ' + C_GOLD + '"><td style="' + SUMTD + ';color:#fff;font-weight:900;font-size:13px;letter-spacing:0.5px">TOTAL A PAGAR</td><td style="border:none;padding:7px 14px;font-size:17px;font-weight:900;text-align:right;background:' + C_GOLD + ';color:' + C_DARK + '">' + fmt(total) + '</td></tr>' +
+    '<tr style="background:' + TOT_BG + ';border-top:3px solid ' + C_GOLD + '"><td style="' + SUMTD + ';color:' + TOT_T + ';font-weight:900;font-size:13px;letter-spacing:0.5px">TOTAL A PAGAR</td><td style="border:1px solid ' + C_GOLD + ';padding:7px 14px;font-size:17px;font-weight:900;text-align:right;background:' + TPAY_BG + ';color:' + TPAY_T + '">' + fmt(total) + '</td></tr>' +
     '</table></td></tr></table>' +
 
     // Footer names
