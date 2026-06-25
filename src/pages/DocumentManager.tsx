@@ -1,17 +1,39 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../store/AppContext';
-import { Document } from '../types';
+import { Document, Bloco, TimberItem } from '../types';
 import { TimberCalculator } from '../components/TimberCalculator';
-import { calcDerived } from '../lib/calc';
-import { buildDocHTML } from '../lib/docHTML';
 import { ChequeTable } from '../components/ChequeTable';
 import { Cheque } from '../lib/cheques';
-import { ArrowLeft, Save, Printer, Plus, Share2 } from 'lucide-react';
+import { calcDerived } from '../lib/calc';
+import { buildDocHTML } from '../lib/docHTML';
+import { ArrowLeft, Save, Printer, Plus, Share2, Trash2, ChevronDown, ChevronUp, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 function fmt(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function newBloco(label = ''): Bloco {
+  return {
+    id: Math.random().toString(36).slice(2, 9),
+    label,
+    clientName: '',
+    clientId: '',
+    items: [],
+  };
+}
+
+function calcBlocoTotals(bloco: Bloco) {
+  return bloco.items.reduce(
+    (acc, item) => {
+      const d = calcDerived(item);
+      acc.m3 += d.finalM3;
+      acc.subtotal += d.value;
+      return acc;
+    },
+    { m3: 0, subtotal: 0 }
+  );
 }
 
 export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ type }) => {
@@ -32,6 +54,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     clientId: '',
     clientName: '',
     supplier: '',
+    blocos: [newBloco('Principal')],
     items: [],
     subtotal: 0,
     totalM3: 0,
@@ -42,17 +65,36 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     settlement: 0,
     motorista: '',
     status: 'andamento',
-    cheques: [],
     paymentTerms: 'À VISTA',
+    cheques: [],
     notes: type === 'romaneio'
       ? 'O FRETE SERÁ PAGO À VISTA AO TRANSPORTADOR NO ATO DA DESCARGA, DEDUZIDO DO MATERIAL. MANDAR O PAGAMENTO DA MADEIRA PELO MOTORISTA.'
       : '',
   });
 
+  const [collapsedBlocos, setCollapsedBlocos] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
     if (id) {
       const ex = state.documents.find(d => d.id === id);
-      if (ex) setDoc(ex);
+      if (ex) {
+        // Migrate legacy doc (no blocos) to bloco format
+        if (!ex.blocos || ex.blocos.length === 0) {
+          setDoc({
+            ...ex,
+            blocos: [{
+              id: 'main',
+              label: 'Principal',
+              clientId: ex.clientId,
+              clientName: ex.clientName,
+              clientData: ex.clientData,
+              items: ex.items || [],
+            }],
+          });
+        } else {
+          setDoc(ex);
+        }
+      }
     }
   }, [id]);
 
@@ -60,59 +102,82 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     if (fromPedidoId && type === 'romaneio') {
       const pedido = state.documents.find(d => d.id === fromPedidoId);
       if (pedido) {
+        const blocos = pedido.blocos && pedido.blocos.length > 0
+          ? pedido.blocos.map(b => ({
+              ...b,
+              id: Math.random().toString(36).slice(2, 9),
+              items: b.items.map(i => ({ ...i, id: Math.random().toString(36).slice(2, 9) })),
+            }))
+          : [{
+              id: Math.random().toString(36).slice(2, 9),
+              label: 'Principal',
+              clientId: pedido.clientId,
+              clientName: pedido.clientName,
+              clientData: pedido.clientData,
+              items: pedido.items.map(i => ({ ...i, id: Math.random().toString(36).slice(2, 9) })),
+            }];
         setDoc(prev => ({
           ...prev,
-          clientId: pedido.clientId || '',
-          clientName: pedido.clientName,
-          clientData: pedido.clientData,
           supplier: pedido.supplier || '',
-          items: pedido.items.map(i => ({ ...i, id: Math.random().toString(36).slice(2, 9) })),
           paymentTerms: pedido.paymentTerms,
+          blocos,
         }));
       }
     }
   }, [fromPedidoId]);
 
+  // ── Totals across ALL blocos ──────────────────────────────────────────────
   const totals = useMemo(() => {
-    return (doc.items || []).reduce(
-      (acc, item) => {
-        const d = calcDerived(item);
-        acc.m3 += d.finalM3;
-        acc.subtotal += d.value;
+    return (doc.blocos || []).reduce(
+      (acc, bloco) => {
+        const bt = calcBlocoTotals(bloco);
+        acc.m3 += bt.m3;
+        acc.subtotal += bt.subtotal;
         return acc;
       },
       { m3: 0, subtotal: 0 }
     );
-  }, [doc.items]);
+  }, [doc.blocos]);
 
   const commission = doc.commissionPct ? totals.subtotal * (doc.commissionPct / 100) : 0;
   const total = type === 'romaneio'
     ? totals.subtotal - (doc.freight || 0) - commission - (doc.settlement || 0)
     : totals.subtotal;
 
-  const selectedClient = state.clients.find(c => c.id === doc.clientId);
-  const client = (doc.clientData || selectedClient || {}) as Record<string, any>;
-
   const displayDate = doc.date && !isNaN(new Date(doc.date).getTime())
     ? format(new Date(doc.date + 'T12:00:00'), 'dd/MM/yyyy')
     : '—';
 
-  const handleClientSelect = (clientId: string) => {
+  // ── Bloco helpers ─────────────────────────────────────────────────────────
+  const updateBloco = (blocoId: string, patch: Partial<Bloco>) =>
+    setDoc(p => ({ ...p, blocos: (p.blocos || []).map(b => b.id === blocoId ? { ...b, ...patch } : b) }));
+
+  const addBloco = () =>
+    setDoc(p => ({ ...p, blocos: [...(p.blocos || []), newBloco(`Loja ${(p.blocos || []).length + 1}`)] }));
+
+  const removeBloco = (blocoId: string) =>
+    setDoc(p => ({ ...p, blocos: (p.blocos || []).filter(b => b.id !== blocoId) }));
+
+  const toggleBloco = (blocoId: string) =>
+    setCollapsedBlocos(prev => ({ ...prev, [blocoId]: !prev[blocoId] }));
+
+  const handleBlocoClientSelect = (blocoId: string, clientId: string) => {
     const c = state.clients.find(x => x.id === clientId);
-    setDoc(prev => ({
-      ...prev,
+    updateBloco(blocoId, {
       clientId,
       clientName: c?.name || '',
       clientData: c ? { ...c } : undefined,
-    }));
+    });
   };
 
+  // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     const now = new Date().toISOString();
     const finalDoc: Document = {
       ...doc,
       id: doc.id || Math.random().toString(36).slice(2, 11),
-      clientName: doc.clientName || client?.name || '—',
+      clientName: doc.blocos?.[0]?.clientName || doc.clientName || '—',
+      items: doc.blocos?.flatMap(b => b.items) || [],
       subtotal: totals.subtotal,
       totalM3: totals.m3,
       commissionValue: commission,
@@ -131,54 +196,37 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     commission,
     total,
     displayDate,
-    client,
+    client: (doc.blocos?.[0]?.clientData || state.clients.find(c => c.id === doc.blocos?.[0]?.clientId) || {}) as Record<string, any>,
     settings: state.settings,
     cheques: doc.cheques || [],
+    blocos: doc.blocos || [],
   });
 
   const handlePrint = () => {
     const win = window.open('', '_blank');
-    if (!win) {
-      alert('Pop-up bloqueado. Permita pop-ups para este site e tente novamente.');
-      return;
-    }
+    if (!win) { alert('Pop-up bloqueado. Permita pop-ups para este site e tente novamente.'); return; }
     win.document.write(getHTML());
     win.document.close();
   };
 
   const handleShare = async () => {
-    const title = `${type.toUpperCase()} Nº ${doc.number} — ${doc.clientName || ''}`;
+    const title = `${type.toUpperCase()} Nº ${doc.number}`;
     const html = getHTML();
     const blob = new Blob([html], { type: 'text/html' });
     const file = new File([blob], `${type}-${doc.number}.html`, { type: 'text/html' });
-
     if (navigator.share) {
       try {
         const shareData: ShareData = { title, files: [file] };
-        if ((navigator as any).canShare && (navigator as any).canShare(shareData)) {
-          await navigator.share(shareData);
-          return;
-        }
-        await navigator.share({
-          title,
-          text: [
-            `${type.toUpperCase()} Nº ${doc.number}`,
-            `Cliente: ${doc.clientName || '—'}`,
-            doc.supplier ? `Fornecedor: ${doc.supplier}` : '',
-            `Data: ${displayDate}`,
-            `Total M³: ${totals.m3.toFixed(4)}`,
-            `Total: ${fmt(total)}`,
-            doc.motorista ? `Motorista: ${doc.motorista}` : '',
-          ].filter(Boolean).join('\n'),
-        });
+        if ((navigator as any).canShare?.(shareData)) { await navigator.share(shareData); return; }
+        await navigator.share({ title, text: `${title}\nTotal: ${fmt(total)}` });
         return;
       } catch {}
     }
-    await navigator.clipboard.writeText(title).catch(() => {});
-    alert('Para compartilhar o PDF: use o botão Imprimir / PDF, salve como PDF e compartilhe o arquivo.');
+    handlePrint();
   };
 
   const s = state.settings;
+  const blocos = doc.blocos || [];
 
   return (
     <div className="space-y-5 pb-32">
@@ -193,7 +241,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
               {type === 'pedido' ? 'Pedido' : 'Romaneio'} — Nº {doc.number}
             </h1>
             <p className="text-xs text-gray-400 uppercase tracking-widest">
-              {id ? 'Editando' : 'Novo documento'}
+              {blocos.length > 1 ? `${blocos.length} lojas/blocos` : id ? 'Editando' : 'Novo documento'}
             </p>
           </div>
         </div>
@@ -213,7 +261,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
         </div>
       </div>
 
-      {/* Form */}
+      {/* Doc-level fields */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nº Documento</label>
@@ -225,47 +273,23 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
           <input type="date" value={doc.date || ''} onChange={e => setDoc(p => ({ ...p, date: e.target.value }))}
             className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
         </div>
-        <div className="space-y-1 lg:col-span-2">
-          <div className="flex items-center justify-between">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-              {type === 'pedido' ? 'Destinatário' : 'Cliente'}
-            </label>
-            <Link to="/clientes" className="text-[9px] font-bold text-green-700 hover:underline flex items-center gap-1">
-              <Plus className="w-2.5 h-2.5" /> Cadastrar
-            </Link>
-          </div>
-          <select value={doc.clientId || ''} onChange={e => handleClientSelect(e.target.value)}
-            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none">
-            <option value="">— Selecionar —</option>
-            {state.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          {!doc.clientId && (
-            <input value={doc.clientName || ''} onChange={e => setDoc(p => ({ ...p, clientName: e.target.value }))}
-              placeholder="Ou digitar nome manualmente..."
-              className="w-full mt-1 p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
-          )}
-        </div>
-
         <div className="space-y-1 md:col-span-2">
           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Fornecedor / Fábrica</label>
           <input value={doc.supplier || ''} onChange={e => setDoc(p => ({ ...p, supplier: e.target.value }))}
             placeholder="Nome da fábrica..."
             className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
         </div>
-
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Condição Pagamento</label>
           <input value={doc.paymentTerms || ''} onChange={e => setDoc(p => ({ ...p, paymentTerms: e.target.value }))}
             className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
         </div>
-
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nome do Motorista</label>
           <input value={doc.motorista || ''} onChange={e => setDoc(p => ({ ...p, motorista: e.target.value }))}
             placeholder="Ex: João da Silva"
             className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
         </div>
-
         {type === 'romaneio' && <>
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Frete (R$)</label>
@@ -283,7 +307,6 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
               className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
           </div>
         </>}
-
         <div className="space-y-1 md:col-span-2 lg:col-span-4">
           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Observações</label>
           <textarea value={doc.notes || ''} onChange={e => setDoc(p => ({ ...p, notes: e.target.value }))}
@@ -291,12 +314,102 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
         </div>
       </div>
 
-      {/* Calculator */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm overflow-x-auto">
-        <TimberCalculator items={doc.items || []} onChange={items => setDoc(p => ({ ...p, items }))} />
+      {/* ── BLOCOS ── */}
+      <div className="space-y-4">
+        {blocos.map((bloco, bi) => {
+          const bt = calcBlocoTotals(bloco);
+          const isCollapsed = collapsedBlocos[bloco.id];
+          return (
+            <div key={bloco.id} className="bg-white border-2 border-green-200 rounded-xl shadow-sm overflow-hidden">
+              {/* Bloco header */}
+              <div className="flex items-center justify-between px-4 py-3 bg-green-50 border-b border-green-200 gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-8 h-8 bg-green-700 text-white rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0">
+                    {bi + 1}
+                  </div>
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <Building2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    <input
+                      value={bloco.label}
+                      onChange={e => updateBloco(bloco.id, { label: e.target.value })}
+                      placeholder="Nome da loja / local..."
+                      className="font-black text-green-800 bg-transparent border-b-2 border-dashed border-green-300 focus:border-green-600 outline-none text-sm flex-1 min-w-0 py-0.5"
+                    />
+                  </div>
+                  {bt.m3 > 0 && (
+                    <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                      {bt.m3.toFixed(3)} m³ · {fmt(bt.subtotal)}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button onClick={() => toggleBloco(bloco.id)}
+                    className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition-all">
+                    {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                  </button>
+                  {blocos.length > 1 && (
+                    <button onClick={() => removeBloco(bloco.id)}
+                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {!isCollapsed && (
+                <div className="p-4 space-y-4">
+                  {/* Bloco client */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                          {type === 'pedido' ? 'Destinatário' : 'Cliente'}
+                        </label>
+                        <Link to="/clientes" className="text-[9px] font-bold text-green-700 hover:underline flex items-center gap-1">
+                          <Plus className="w-2.5 h-2.5" /> Cadastrar
+                        </Link>
+                      </div>
+                      <select value={bloco.clientId || ''}
+                        onChange={e => handleBlocoClientSelect(bloco.id, e.target.value)}
+                        className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none">
+                        <option value="">— Selecionar —</option>
+                        {state.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                      {!bloco.clientId && (
+                        <input value={bloco.clientName || ''}
+                          onChange={e => updateBloco(bloco.id, { clientName: e.target.value })}
+                          placeholder="Ou digitar nome manualmente..."
+                          className="w-full mt-1 p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+                      )}
+                    </div>
+                    {bloco.clientData && (
+                      <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500 space-y-0.5">
+                        {(bloco.clientData as any).address && <p>📍 {(bloco.clientData as any).address}</p>}
+                        {(bloco.clientData as any).city && <p>🏙 {(bloco.clientData as any).city}</p>}
+                        {(bloco.clientData as any).phone && <p>📞 {(bloco.clientData as any).phone}</p>}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bloco calculator */}
+                  <TimberCalculator
+                    items={bloco.items}
+                    onChange={items => updateBloco(bloco.id, { items })}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Add bloco button */}
+        <button onClick={addBloco}
+          className="w-full py-3 border-2 border-dashed border-green-300 text-green-700 rounded-xl font-bold text-sm hover:border-green-500 hover:bg-green-50 transition-all flex items-center justify-center gap-2">
+          <Plus className="w-4 h-4" /> Adicionar Loja / Bloco
+        </button>
       </div>
 
-      {/* Cheques / Parcelas — somente romaneio */}
+      {/* Cheques — romaneio only */}
       {type === 'romaneio' && (
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <ChequeTable
@@ -311,6 +424,20 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
 
       {/* Live totals */}
       <div className="bg-green-700 text-white rounded-xl p-4 shadow-md">
+        {blocos.length > 1 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 pb-3 border-b border-green-600">
+            {blocos.map((b, i) => {
+              const bt = calcBlocoTotals(b);
+              return (
+                <div key={b.id} className="bg-green-600 rounded-lg p-2">
+                  <p className="text-green-300 text-[10px] font-bold truncate">{b.label || `Bloco ${i + 1}`}</p>
+                  <p className="text-white text-xs font-black">{bt.m3.toFixed(3)} m³</p>
+                  <p className="text-green-200 text-[10px]">{fmt(bt.subtotal)}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
           <div>
             <p className="text-green-300 text-xs font-bold uppercase tracking-wider">Total M³</p>
