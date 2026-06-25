@@ -567,12 +567,18 @@ ${doc.notes ? `<div style="background:#fff8f0;border:1px solid #f0a040;border-to
             <p className="text-green-300 text-xs font-bold uppercase tracking-wider">Subtotal</p>
             <p className="text-xl font-black">{fmt(totals.subtotal)}</p>
           </div>
-          {type === 'romaneio' && <>
+          {type === 'romaneio' && (doc.freight || 0) > 0 && (
             <div>
-              <p className="text-green-300 text-xs font-bold uppercase tracking-wider">– Frete + Comissão</p>
-              <p className="text-xl font-black text-red-300">{fmt((doc.freight || 0) + commission)}</p>
+              <p className="text-green-300 text-xs font-bold uppercase tracking-wider">– Frete</p>
+              <p className="text-xl font-black text-red-300">{fmt(doc.freight || 0)}</p>
             </div>
-          </>}
+          )}
+          {type === 'romaneio' && commission > 0 && (
+            <div>
+              <p className="text-green-300 text-xs font-bold uppercase tracking-wider">– Comissão</p>
+              <p className="text-xl font-black text-red-300">{fmt(commission)}</p>
+            </div>
+          )}
           <div>
             <p className="text-green-300 text-xs font-bold uppercase tracking-wider">Total a Pagar</p>
             <p className="text-2xl font-black text-yellow-300">{fmt(total)}</p>
