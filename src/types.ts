@@ -50,6 +50,9 @@ export interface Document {
   paymentTerms?: string;
   notes: string;
   motorista?: string;
+  status?: 'andamento' | 'concluido';
+  romaneioId?: string;
+  supplier?: string;
   createdAt: string;
   updatedAt: string;
 }
