@@ -2,9 +2,18 @@ import { Document, TimberItem, Bloco } from '../types';
 import { calcDerived } from './calc';
 import { Cheque } from './cheques';
 
-const TH = 'border:1px solid #2d7a4f;padding:4px 5px;text-align:center;font-weight:bold;font-size:11px';
-const TD = 'border:1px solid #ccc;padding:3px 5px;text-align:center;font-size:11px';
-const SUMTD = 'border:1px solid #ddd;padding:6px 12px;font-size:12px';
+// ── Palette: Deep Forest + Warm Gold ─────────────────────────────────────
+const C_DARK   = '#1B4332';   // deep forest green — headers
+const C_MED    = '#2D6A4F';   // medium green — sub-headers
+const C_GOLD   = '#D4A017';   // warm gold — accent / VALOR
+const C_SAGE   = '#F0F7F4';   // light sage — row alt bg
+const C_WARM   = '#FAFAF8';   // warm white — row bg
+const C_CHAR   = '#2D2D2D';   // charcoal — text
+const C_GOLDBG = '#FDF8EC';   // soft gold bg — totals highlight
+
+const TH = 'border:1px solid ' + C_MED + ';padding:5px 6px;text-align:center;font-weight:bold;font-size:10px;background:' + C_DARK + ';color:#fff';
+const TD = 'border:1px solid #ddd;padding:3px 6px;text-align:center;font-size:10px;color:' + C_CHAR;
+const SUMTD = 'border:1px solid #e0e0e0;padding:7px 14px;font-size:11px;color:' + C_CHAR;
 
 function fmt(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -28,7 +37,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
   function buildItemRows(items: TimberItem[]): string {
     const rows = items.map((item: TimberItem, i: number) => {
       const d = calcDerived(item);
-      const bg = i % 2 === 0 ? '#fff' : '#f2faf5';
+      const bg = i % 2 === 0 ? C_WARM : C_SAGE;
       return (
         '<tr style="background:' + bg + '">' +
         '<td style="' + TD + '">' + item.espessura + '</td>' +
@@ -41,14 +50,14 @@ export function buildDocHTML(p: DocHTMLParams): string {
         '<td style="' + TD + '">' + d.linearMeters.toFixed(3) + '</td>' +
         '<td style="' + TD + ';font-weight:bold">' + (item.pricePerM3 ? fmt(item.pricePerM3) : '') + '</td>' +
         '<td style="' + TD + ';font-weight:bold;color:#444">' + (d.precoUnitario > 0 ? d.precoUnitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—') + '</td>' +
-        '<td style="' + TD + ';font-weight:bold;color:#1a5c34">' + d.finalM3.toFixed(4) + '</td>' +
-        '<td style="' + TD + ';font-weight:bold;text-align:right">' + fmt(d.value) + '</td>' +
+        '<td style="border:1px solid #c8e6d8;padding:3px 6px;text-align:center;font-size:10px;font-weight:bold;color:' + C_DARK + ';background:#f0faf4">' + d.finalM3.toFixed(4) + '</td>' +
+        '<td style="border:1px solid #e8d090;padding:3px 6px;text-align:right;font-size:10px;color:' + C_DARK + ';font-weight:bold;background:' + C_GOLDBG + '">' + fmt(d.value) + '</td>' +
         '</tr>'
       );
     });
     const minEmpty = Math.max(0, 5 - rows.length);
     const empty = Array.from({ length: minEmpty }).map((_, i) => {
-      const bg = (rows.length + i) % 2 === 0 ? '#fff' : '#f2faf5';
+      const bg = (rows.length + i) % 2 === 0 ? C_WARM : C_SAGE;
       return '<tr style="background:' + bg + '">' +
         Array.from({ length: 12 }).map(() => '<td style="' + TD + ';height:20px"></td>').join('') +
         '</tr>';
@@ -74,24 +83,24 @@ export function buildDocHTML(p: DocHTMLParams): string {
       '<tr style="background:#1a5c34;color:#fff">' +
       '<th style="' + TH + '" rowspan="2">Bitola<br>(cm)</th>' +
       '<th style="' + TH + '" rowspan="2">Larg.<br>(cm)</th>' +
-      '<th style="' + TH + ';background:#155228;font-size:8px" colspan="4">Comprimento (m) — Qtd de Pecas</th>' +
+      '<th style="' + TH + ';background:' + C_MED + ';font-size:8px;letter-spacing:0.5px" colspan="4">Comprimento (m) — Qtd de Peças</th>' +
       '<th style="' + TH + '" rowspan="2">Qtd<br>Pcs</th>' +
       '<th style="' + TH + '" rowspan="2">Metros<br>Lin.</th>' +
       '<th style="' + TH + '" rowspan="2">R$/m3</th>' +
       '<th style="' + TH + '" rowspan="2">Preco<br>Unit.</th>' +
-      '<th style="' + TH + ';background:#2d7a4f" rowspan="2">M3</th>' +
-      '<th style="' + TH + ';background:#b45309" rowspan="2">VALOR</th>' +
+      '<th style="' + TH + ';background:' + C_MED + '" rowspan="2">M³</th>' +
+      '<th style="border:1px solid ' + C_GOLD + ';padding:5px 6px;text-align:center;font-weight:bold;font-size:10px;background:' + C_GOLD + ';color:' + C_DARK + '" rowspan="2">VALOR</th>' +
       '</tr>' +
-      '<tr style="background:#2d7a4f;color:#fff">' +
+      '<tr style="background:' + C_MED + ';color:#fff">' +
       '<th style="' + TH + '">3,00</th><th style="' + TH + '">4,00</th><th style="' + TH + '">5,00</th><th style="' + TH + '">6,00</th>' +
       '</tr></thead>' +
       '<tbody>' + buildItemRows(items) + '</tbody>' +
-      '<tfoot><tr style="background:#1a5c34;color:#fff;font-weight:bold">' +
+      '<tfoot><tr style="background:' + C_DARK + ';color:#fff;font-weight:bold;border-top:3px solid ' + C_GOLD + '">' +
       '<td colspan="6" style="' + TD + '"></td>' +
       '<td style="' + TD + ';text-align:center;font-size:11px">' + qtyT + '</td>' +
       '<td colspan="3" style="' + TD + '"></td>' +
-      '<td style="' + TD + ';font-size:9px;color:#a7f3c0;text-align:right;white-space:nowrap">Total m3: <span style="color:#86efac;font-weight:900;font-size:11px">' + m3T.toFixed(4) + '</span></td>' +
-      '<td style="' + TD + ';color:#fcd34d;font-weight:900;font-size:11px;text-align:right">' + fmt(valT) + '</td>' +
+      '<td style="border:1px solid rgba(255,255,255,0.2);padding:3px 6px;text-align:right;font-size:9px;color:rgba(255,255,255,0.7)">Total m³: <span style="color:#fff;font-weight:900;font-size:12px">' + m3T.toFixed(4) + '</span></td>' +
+      '<td style="border:1px solid ' + C_GOLD + ';padding:3px 6px;text-align:right;font-size:12px;font-weight:900;background:' + C_GOLD + ';color:' + C_DARK + '">' + fmt(valT) + '</td>' +
       '</tr></tfoot></table>'
     );
   }
@@ -101,9 +110,9 @@ export function buildDocHTML(p: DocHTMLParams): string {
     const bc = bloco.clientData as any || {};
     const blocoClient = bc;
     const blocoHeader = isMultiBloco
-      ? '<div style="background:#e8f5ee;border:1px solid #1a5c34;border-radius:4px 4px 0 0;padding:5px 10px;margin-top:8px;display:flex;justify-content:space-between;align-items:center">' +
-        '<span style="font-weight:900;font-size:11px;color:#1a5c34;text-transform:uppercase">&#127970; ' + (bloco.label || 'Bloco') + '</span>' +
-        '<span style="font-size:10px;color:#555;font-weight:bold">' + (bloco.clientName || '') + (blocoClient.city ? ' — ' + blocoClient.city : '') + '</span>' +
+      ? '<div style="background:' + C_DARK + ';border-radius:6px 6px 0 0;padding:6px 12px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid ' + C_GOLD + '">' +
+        '<span style="font-weight:900;font-size:11px;color:#fff;text-transform:uppercase;letter-spacing:1px">&#127970; ' + (bloco.label || 'Bloco') + '</span>' +
+        '<span style="font-size:10px;color:' + C_GOLD + ';font-weight:bold">' + (bloco.clientName || '') + (blocoClient.city ? ' — ' + blocoClient.city : '') + '</span>' +
         '</div>'
       : '';
     return blocoHeader + buildTableSection(bloco.items);
@@ -124,7 +133,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
     : '';
 
   const notesBar = doc.notes
-    ? '<div style="background:#fff8f0;border:1px solid #f0a040;border-top:none;padding:4px 10px;font-size:9px;font-weight:bold;color:#b45309;text-transform:uppercase;margin-bottom:6px;text-align:center">' + doc.notes + '</div>'
+    ? '<div style="background:' + C_GOLDBG + ';border-left:4px solid ' + C_GOLD + ';padding:6px 12px;font-size:9px;font-weight:bold;color:#7a5c00;margin-bottom:6px">' + doc.notes + '</div>'
     : '';
 
   const supplierRow = doc.supplier
@@ -169,7 +178,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
     '<div class="page"><div class="content">\n' +
 
     // Header
-    '<div style="background:#1a5c34;padding:14px 16px;border-radius:6px 6px 0 0">' +
+    '<div style="background:' + C_DARK + ';padding:16px 18px;border-radius:8px 8px 0 0;border-bottom:3px solid ' + C_GOLD + '">' +
     '<table><tr>' +
     '<td style="vertical-align:middle;width:70px;padding-right:12px"><div style="width:62px;height:62px;background:#fff;border-radius:8px;font-size:36px;text-align:center;line-height:62px">&#127794;</div></td>' +
     '<td style="vertical-align:middle">' +
@@ -185,7 +194,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
     '</td></tr></table></div>' +
 
     // Client data
-    '<div style="border:1px solid #ccc;border-top:none;padding:8px 12px;margin-bottom:6px;background:#fafffe">' +
+    '<div style="border:1px solid #d0e8d8;border-top:none;padding:10px 14px;margin-bottom:6px;background:' + C_WARM + '">' +
     '<table><tr>' +
     '<td style="width:58%;vertical-align:top;padding-right:12px">' +
     '<div style="margin-bottom:2px"><strong>CLIENTE:</strong> <span style="text-transform:uppercase;font-weight:900;font-size:12px;color:#1a5c34">' + (doc.clientName || client.name || '—') + '</span></div>' +
@@ -231,30 +240,30 @@ export function buildDocHTML(p: DocHTMLParams): string {
       '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:4px">Cheques / Parcelas</div>' +
       chequesHTML + '</td>') : '') +
     '<td style="vertical-align:top;' + (chequesHTML ? 'width:45%' : 'width:100%') + '">' +
-    '<table style="border:2px solid #1a5c34;border-radius:4px;overflow:hidden;font-size:10px">' +
-    '<tr style="background:#f0faf4"><td style="' + SUMTD + '"><strong>Total em M3</strong></td><td style="' + SUMTD + ';font-weight:bold;color:#1a5c34;text-align:right;font-size:12px">' + totals.m3.toFixed(4) + ' m3</td></tr>' +
+    '<table style="border:2px solid ' + C_DARK + ';border-radius:6px;overflow:hidden;font-size:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1)">' +
+    '<tr style="background:' + C_SAGE + '"><td style="' + SUMTD + '"><strong style="color:' + C_DARK + '">Total em M³</strong></td><td style="' + SUMTD + ';font-weight:bold;color:' + C_DARK + ';text-align:right;font-size:13px">' + totals.m3.toFixed(4) + ' m³</td></tr>' +
     '<tr><td style="' + SUMTD + '">Subtotal Madeira</td><td style="' + SUMTD + ';font-weight:bold;text-align:right">' + fmt(totals.subtotal) + '</td></tr>' +
     freteRow + commRow + settlRow +
-    '<tr style="background:#1a5c34"><td style="' + SUMTD + ';color:#fff;font-weight:900;font-size:13px">TOTAL A PAGAR</td><td style="' + SUMTD + ';color:#fcd34d;font-weight:900;font-size:16px;text-align:right">' + fmt(total) + '</td></tr>' +
+    '<tr style="background:' + C_DARK + ';border-top:3px solid ' + C_GOLD + '"><td style="' + SUMTD + ';color:#fff;font-weight:900;font-size:13px;letter-spacing:0.5px">TOTAL A PAGAR</td><td style="border:none;padding:7px 14px;font-size:17px;font-weight:900;text-align:right;background:' + C_GOLD + ';color:' + C_DARK + '">' + fmt(total) + '</td></tr>' +
     '</table></td></tr></table>' +
 
     // Footer names
-    '<div style="border-top:2px solid #1a5c34;margin-top:10px;padding-top:8px">' +
+    '<div style="border-top:3px solid ' + C_GOLD + ';margin-top:12px;padding-top:10px">' +
     '<table><tr>' +
     '<td style="width:33%;padding:6px 10px"><div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">' +
-    '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:3px">Cliente</div>' +
-    '<div style="font-weight:900;font-size:11px;text-transform:uppercase;color:#1a5c34">' + (doc.clientName || client.name || '—') + '</div>' +
+    '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:' + C_MED + ';letter-spacing:1.5px;margin-bottom:3px">Cliente</div>' +
+    '<div style="font-weight:900;font-size:11px;text-transform:uppercase;color:' + C_DARK + '">' + (doc.clientName || client.name || '—') + '</div>' +
     clientPhone + '</div></td>' +
     '<td style="width:34%;padding:6px 10px"><div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">' +
-    '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:3px">Fornecedor / Fabrica</div>' +
-    '<div style="font-weight:900;font-size:11px;text-transform:uppercase;color:#1a5c34">' + (doc.supplier || '—') + '</div>' +
+    '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:' + C_MED + ';letter-spacing:1.5px;margin-bottom:3px">Fornecedor / Fábrica</div>' +
+    '<div style="font-weight:900;font-size:11px;text-transform:uppercase;color:' + C_DARK + '">' + (doc.supplier || '—') + '</div>' +
     '</div></td>' +
     '<td style="width:33%;padding:6px 10px"><div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">' +
-    '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:3px">Motorista</div>' +
-    '<div style="font-weight:900;font-size:11px;text-transform:uppercase;color:#1a5c34">' + (doc.motorista || '—') + '</div>' +
+    '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:' + C_MED + ';letter-spacing:1.5px;margin-bottom:3px">Motorista</div>' +
+    '<div style="font-weight:900;font-size:11px;text-transform:uppercase;color:' + C_DARK + '">' + (doc.motorista || '—') + '</div>' +
     '</div></td>' +
     '</tr></table>' +
-    '<div style="text-align:center;margin-top:6px;font-size:8px;color:#aaa">EDI – Gestao de Madeiras | Emitido em ' + emittedDate + '</div>' +
+    '<div style="text-align:center;margin-top:8px;font-size:8px;color:#999;letter-spacing:0.5px">EDI – Gestão de Madeiras &nbsp;|&nbsp; ' + s.companyPhone + ' &nbsp;|&nbsp; ' + s.companyEmail + ' &nbsp;|&nbsp; Emitido em ' + emittedDate + '</div>' +
     '</div>' +
 
     '</div></div></body></html>';
