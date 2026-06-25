@@ -5,6 +5,8 @@ import { Document } from '../types';
 import { TimberCalculator } from '../components/TimberCalculator';
 import { calcDerived } from '../lib/calc';
 import { buildDocHTML } from '../lib/docHTML';
+import { ChequeTable } from '../components/ChequeTable';
+import { Cheque } from '../lib/cheques';
 import { ArrowLeft, Save, Printer, Plus, Share2 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -40,6 +42,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     settlement: 0,
     motorista: '',
     status: 'andamento',
+    cheques: [],
     paymentTerms: 'À VISTA',
     notes: type === 'romaneio'
       ? 'O FRETE SERÁ PAGO À VISTA AO TRANSPORTADOR NO ATO DA DESCARGA, DEDUZIDO DO MATERIAL. MANDAR O PAGAMENTO DA MADEIRA PELO MOTORISTA.'
@@ -130,6 +133,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     displayDate,
     client,
     settings: state.settings,
+    cheques: doc.cheques || [],
   });
 
   const handlePrint = () => {
@@ -290,6 +294,17 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
       {/* Calculator */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm overflow-x-auto">
         <TimberCalculator items={doc.items || []} onChange={items => setDoc(p => ({ ...p, items }))} />
+      </div>
+
+      {/* Cheques / Parcelas */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+        <ChequeTable
+          cheques={doc.cheques || []}
+          onChange={cheques => setDoc(p => ({ ...p, cheques }))}
+          total={total}
+          paymentTerms={doc.paymentTerms || ''}
+          docDate={doc.date || ''}
+        />
       </div>
 
       {/* Live totals */}
