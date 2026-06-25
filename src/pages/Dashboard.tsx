@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApp } from '../store/AppContext';
-import { Link } from 'react-router-dom';
-import { Plus, Users, FileText, Truck, TrendingUp, ArrowRight, Clock } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, Users, FileText, Truck, ArrowRight, Clock, CheckCircle2, ChevronRight } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { motion } from 'motion/react';
 
@@ -10,45 +10,25 @@ function fmt(n: number) {
 }
 
 export const Dashboard: React.FC = () => {
-  const { state } = useApp();
+  const { state, saveDocument } = useApp();
+  const navigate = useNavigate();
 
-  const totalM3 = state.documents.reduce((s, d) => s + d.totalM3, 0);
-  const totalValue = state.documents.reduce((s, d) => s + d.total, 0);
-  const recentDocs = state.documents.slice(0, 6);
+  const pedidosAndamento = state.documents.filter(
+    d => d.type === 'pedido' && d.status !== 'concluido'
+  );
 
-  const stats = [
-    {
-      label: 'Cubicagem Total',
-      value: `${totalM3.toFixed(2)} m³`,
-      icon: TrendingUp,
-      color: 'text-blue-600',
-      bg: 'bg-blue-50',
-    },
-    {
-      label: 'Volume Financeiro',
-      value: fmt(totalValue),
-      icon: FileText,
-      color: 'text-green-700',
-      bg: 'bg-green-50',
-    },
-    {
-      label: 'Clientes',
-      value: state.clients.length,
-      icon: Users,
-      color: 'text-amber-600',
-      bg: 'bg-amber-50',
-    },
-    {
-      label: 'Documentos',
-      value: state.documents.length,
-      icon: Truck,
-      color: 'text-purple-600',
-      bg: 'bg-purple-50',
-    },
-  ];
+  const marcarConcluido = async (id: string) => {
+    const doc = state.documents.find(d => d.id === id);
+    if (!doc) return;
+    await saveDocument({ ...doc, status: 'concluido', updatedAt: new Date().toISOString() });
+  };
+
+  const criarRomaneio = (pedidoId: string) => {
+    navigate(`/romaneios/novo?from=${pedidoId}`);
+  };
 
   return (
-    <div className="space-y-8 pb-24 md:pb-0">
+    <div className="space-y-6 pb-24 md:pb-0">
       <div>
         <h1 className="text-2xl font-black text-green-800">Bem-vindo, David!</h1>
         <p className="text-gray-500 text-sm">EDI – Gestão de Madeiras</p>
@@ -57,34 +37,11 @@ export const Dashboard: React.FC = () => {
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          {
-            to: '/pedidos/novo',
-            icon: FileText,
-            label: 'Novo Pedido',
-            sub: 'Ordem para a fábrica',
-            color: 'text-amber-600',
-            bg: 'bg-amber-50',
-          },
-          {
-            to: '/romaneios/novo',
-            icon: Truck,
-            label: 'Novo Romaneio',
-            sub: 'Dados de descarga',
-            color: 'text-blue-600',
-            bg: 'bg-blue-50',
-          },
-          {
-            to: '/clientes',
-            icon: Users,
-            label: 'Clientes',
-            sub: 'Gestão de contatos',
-            color: 'text-green-700',
-            bg: 'bg-green-50',
-          },
+          { to: '/pedidos/novo', icon: FileText, label: 'Novo Pedido', sub: 'Ordem para a fábrica', color: 'text-amber-600', bg: 'bg-amber-50' },
+          { to: '/romaneios/novo', icon: Truck, label: 'Novo Romaneio', sub: 'Dados de descarga', color: 'text-blue-600', bg: 'bg-blue-50' },
+          { to: '/clientes', icon: Users, label: 'Clientes', sub: 'Gestão de contatos', color: 'text-green-700', bg: 'bg-green-50' },
         ].map(item => (
-          <Link
-            key={item.to}
-            to={item.to}
+          <Link key={item.to} to={item.to}
             className="group flex items-center gap-4 p-5 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-green-300 transition-all"
           >
             <div className={`w-12 h-12 ${item.bg} ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0`}>
@@ -99,72 +56,89 @@ export const Dashboard: React.FC = () => {
         ))}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((s, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.08 }}
-            className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm"
-          >
-            <div className={`w-9 h-9 ${s.bg} ${s.color} rounded-lg flex items-center justify-center mb-3`}>
-              <s.icon className="w-4 h-4" />
-            </div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{s.label}</p>
-            <p className="text-xl font-black text-gray-900 mt-0.5">{s.value}</p>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Recent docs */}
+      {/* Pedidos em andamento */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-black text-gray-800">Documentos Recentes</h2>
-          <Link
-            to="/relatorios"
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-black text-gray-800">Pedidos em Andamento</h2>
+            {pedidosAndamento.length > 0 && (
+              <span className="bg-amber-100 text-amber-700 text-xs font-black px-2 py-0.5 rounded-full">
+                {pedidosAndamento.length}
+              </span>
+            )}
+          </div>
+          <Link to="/relatorios?status=andamento"
             className="flex items-center gap-1 text-xs font-bold text-green-700 hover:underline"
           >
             Ver todos <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-          {recentDocs.length > 0 ? (
-            <div className="divide-y divide-gray-100">
-              {recentDocs.map(doc => (
-                <Link
-                  key={doc.id}
-                  to={`/${doc.type === 'pedido' ? 'pedidos' : 'romaneios'}/${doc.id}`}
-                  className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-                >
+
+        {pedidosAndamento.length === 0 ? (
+          <div className="bg-white border border-dashed border-gray-200 rounded-xl p-8 text-center">
+            <CheckCircle2 className="w-10 h-10 text-green-300 mx-auto mb-2" />
+            <p className="text-gray-400 italic text-sm">Nenhum pedido em andamento.</p>
+            <Link to="/pedidos/novo"
+              className="inline-flex items-center gap-1 mt-3 text-xs font-bold text-green-700 hover:underline"
+            >
+              <Plus className="w-3 h-3" /> Criar novo pedido
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pedidosAndamento.slice(0, 5).map((doc, i) => (
+              <motion.div
+                key={doc.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="bg-white border border-amber-200 rounded-xl overflow-hidden shadow-sm"
+              >
+                {/* Header do card */}
+                <div className="flex items-center justify-between p-4 border-b border-amber-100">
                   <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${doc.type === 'pedido' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
-                      <Clock className="w-4 h-4" />
+                    <div className="w-9 h-9 bg-amber-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Clock className="w-4 h-4 text-amber-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-gray-900">{doc.clientName}</p>
+                      <p className="font-black text-gray-900 text-sm">{doc.clientName || '—'}</p>
                       <p className="text-[10px] text-gray-400 uppercase tracking-wider">
-                        {doc.type} Nº {doc.number} •{' '}
-                        {doc.date
-                          ? format(parseISO(doc.date + 'T12:00:00'), 'dd/MM/yyyy')
-                          : '—'}
+                        Pedido Nº {doc.number} •{' '}
+                        {doc.date ? format(parseISO(doc.date + 'T12:00:00'), 'dd/MM/yyyy') : '—'}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold text-green-700">{fmt(doc.total)}</p>
+                    <p className="font-bold text-green-700 text-sm">{fmt(doc.total)}</p>
                     <p className="text-[10px] text-gray-400">{doc.totalM3.toFixed(4)} m³</p>
                   </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p className="text-center py-10 text-gray-400 italic text-sm">
-              Nenhum documento ainda.
-            </p>
-          )}
-        </div>
+                </div>
+
+                {/* Ações */}
+                <div className="flex items-center gap-2 px-4 py-2 bg-amber-50/50">
+                  <Link
+                    to={`/pedidos/${doc.id}`}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-50 transition-all"
+                  >
+                    <FileText className="w-3 h-3" /> Ver Pedido
+                  </Link>
+                  <button
+                    onClick={() => criarRomaneio(doc.id)}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-all"
+                  >
+                    <Truck className="w-3 h-3" /> Criar Romaneio
+                  </button>
+                  <button
+                    onClick={() => marcarConcluido(doc.id)}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-green-700 text-white rounded-lg text-xs font-bold hover:bg-green-800 transition-all ml-auto"
+                  >
+                    <CheckCircle2 className="w-3 h-3" /> Concluído
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
