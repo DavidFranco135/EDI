@@ -266,7 +266,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
         \${doc.supplier ? \`<div><strong>FORNECEDOR:</strong> <span style="font-weight:bold;text-transform:uppercase">\${doc.supplier}</span></div>\` : ''}
         \${(client as any).phone ? \`<div><strong>FONE:</strong> \${(client as any).phone}</div>\` : ''}
         <div><strong>COND. PAGTO:</strong> \${doc.paymentTerms || '—'}</div>
-        <div><strong>FRETE:</strong> \${type === 'romaneio' ? 'INCLUSO' : 'INCLUSO'}</div>
+        <div><strong>FRETE:</strong> INCLUSO</div>
       </td>
     </tr>
   </table>
@@ -297,10 +297,10 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
   </tbody>
   <tfoot>
     <tr style="background:#1a5c34;color:#fff;font-weight:bold">
-      <td colspan="6" style="\${TD_S};text-align:right;color:#a7f3c0;font-style:italic;font-size:9px">Total em m³ →</td>
+      <td colspan="6" style="\${TD_S}"></td>
       <td style="\${TD_S};text-align:center;font-size:11px">\${rows.reduce((s, r) => s + r.d.qtyTotal, 0)}</td>
       <td colspan="3" style="\${TD_S}"></td>
-      <td style="\${TD_S};color:#86efac;font-weight:900;font-size:12px">\${totals.m3.toFixed(4)}</td>
+      <td style="\${TD_S};font-size:8px;color:#a7f3c0;font-style:italic;text-align:right;white-space:nowrap">Total m³: <span style="color:#86efac;font-weight:900;font-size:11px">\${totals.m3.toFixed(4)}</span></td>
       <td style="\${TD_S};color:#fcd34d;font-weight:900;font-size:12px;text-align:right">\${fmt(totals.subtotal)}</td>
     </tr>
   </tfoot>
@@ -524,7 +524,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
         ${doc.supplier ? `<div><strong>FORNECEDOR:</strong> <span style="font-weight:bold;text-transform:uppercase">${doc.supplier}</span></div>` : ''}
         ${(client as any).phone ? `<div><strong>FONE:</strong> ${(client as any).phone}</div>` : ''}
         <div><strong>COND. PAGTO:</strong> ${doc.paymentTerms || '—'}</div>
-        <div><strong>FRETE:</strong> ${type === 'romaneio' ? 'INCLUSO' : 'A COMBINAR'}</div>
+        <div><strong>FRETE:</strong> INCLUSO</div>
       </td>
     </tr>
   </table>
@@ -559,10 +559,10 @@ ${doc.notes ? `<div style="background:#fff8f0;border:1px solid #f0a040;border-to
   </tbody>
   <tfoot>
     <tr style="background:#1a5c34;color:#fff;font-weight:bold">
-      <td colspan="6" style="${TD};text-align:right;color:#a7f3c0;font-style:italic;font-size:9px">Total em m³ →</td>
+      <td colspan="6" style="${TD}"></td>
       <td style="${TD};text-align:center;font-size:11px">${rows.reduce((s, r) => s + r.d.qtyTotal, 0)}</td>
       <td colspan="3" style="${TD}"></td>
-      <td style="${TD};color:#86efac;font-weight:900;font-size:12px">${totals.m3.toFixed(4)}</td>
+      <td style="${TD};font-size:9px;color:#a7f3c0;font-style:italic;text-align:right;white-space:nowrap">Total m³: <span style="color:#86efac;font-weight:900;font-size:12px">${totals.m3.toFixed(4)}</span></td>
       <td style="${TD};color:#fcd34d;font-weight:900;font-size:12px;text-align:right">${fmt(totals.subtotal)}</td>
     </tr>
   </tfoot>
@@ -822,4 +822,3 @@ const TD_S = 'border:1px solid #ccc;padding:2px 4px;text-align:center;font-size:
 const SUMTD_S = 'border:1px solid #ddd;padding:5px 10px;font-size:10px';
 const TD = 'border:1px solid #ccc;padding:3px 5px;text-align:center;font-size:11px';
 const SUMTD = 'border:1px solid #ddd;padding:6px 12px;font-size:12px';
-    
