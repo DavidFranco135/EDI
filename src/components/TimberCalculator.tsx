@@ -122,7 +122,7 @@ export const TimberCalculator: React.FC<Props> = ({ items, onChange, readOnly })
                 R$/m³
               </th>
               <th rowSpan={2} className="border border-gray-300 px-2 py-1 text-center text-[10px] font-bold uppercase">
-                Média<br />Comp.
+                Preço<br />Unit.
               </th>
               <th rowSpan={2} className="border border-gray-300 px-2 py-1 text-center text-[10px] font-bold uppercase bg-green-100">
                 M³
@@ -230,9 +230,9 @@ export const TimberCalculator: React.FC<Props> = ({ items, onChange, readOnly })
                       placeholder="R$/m³" />
                   </td>
 
-                  {/* Avg */}
-                  <td className="border border-gray-300 text-center text-gray-500 italic">
-                    {d.avgLength.toFixed(2)}
+                  {/* Preço Unitário */}
+                  <td className="border border-gray-300 text-center text-gray-700 font-bold tabular-nums text-[11px]">
+                    {d.precoUnitario > 0 ? d.precoUnitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}
                   </td>
 
                   {/* M³ — in m3_to_qty mode this is the INPUT; in qty_to_m3 shows auto */}
