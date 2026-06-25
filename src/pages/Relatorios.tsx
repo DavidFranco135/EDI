@@ -1,9 +1,8 @@
+import { endOfDay, endOfMonth, format, isWithinInterval, parseISO, startOfDay, startOfMonth } from 'date-fns';
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../store/AppContext';
 import { Link } from 'react-router-dom';
 import { FileText, Truck, Trash2, ExternalLink, Search, Calendar, CheckCircle2, Clock, DollarSign } from 'lucide-react';
-import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
-import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
 
 function fmt(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -130,19 +129,11 @@ export const Relatorios: React.FC = () => {
       </div>
 
       {/* Summary */}
-      {filtered.length > 0 && (
-        <div className="space-y-2">
-          <div className="bg-green-700 text-white rounded-xl px-5 py-3 flex flex-wrap gap-6 text-sm font-bold">
-            <span>{filtered.length} documento{filtered.length !== 1 ? 's' : ''}</span>
-            <span>M³: {summary.m3.toFixed(4)}</span>
-            <span>Total: {fmt(summary.total)}</span>
-            {summary.commission > 0 && (
-              <span className="ml-auto text-amber-300 flex items-center gap-1">
-                <DollarSign className="w-3.5 h-3.5" />
-                Comissão: {fmt(summary.commission)}
-              </span>
-            )}
-          </div>
+      {filtered.length > 0 && summary.commission > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 flex items-center gap-3 text-sm font-bold">
+          <DollarSign className="w-4 h-4 text-amber-600 flex-shrink-0" />
+          <span className="text-amber-700">Comissão total dos documentos filtrados:</span>
+          <span className="text-amber-800 text-base ml-auto">{fmt(summary.commission)}</span>
         </div>
       )}
 
