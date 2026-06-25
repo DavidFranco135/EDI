@@ -1,7 +1,8 @@
 import React from 'react';
 import { useApp } from '../store/AppContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Users, FileText, Truck, ArrowRight, Clock, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Plus, Users, FileText, Truck, ArrowRight, Clock, CheckCircle2, DollarSign } from 'lucide-react';
+import { startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
 import { format, parseISO } from 'date-fns';
 import { motion } from 'motion/react';
 
@@ -16,6 +17,21 @@ export const Dashboard: React.FC = () => {
   const pedidosAndamento = state.documents.filter(
     d => d.type === 'pedido' && d.status !== 'concluido'
   );
+
+  // Monthly commission totals
+  const now = new Date();
+  const monthStart = startOfMonth(now);
+  const monthEnd = endOfMonth(now);
+  const romaneiosMes = state.documents.filter(d => {
+    if (d.type !== 'romaneio') return false;
+    try {
+      const dt = parseISO(d.date + 'T12:00:00');
+      return isWithinInterval(dt, { start: monthStart, end: monthEnd });
+    } catch { return false; }
+  });
+  const comissaoMes = romaneiosMes.reduce((s, d) => s + (d.commissionValue || 0), 0);
+  const totalMes = romaneiosMes.reduce((s, d) => s + d.total, 0);
+  const m3Mes = romaneiosMes.reduce((s, d) => s + d.totalM3, 0);
 
   const marcarConcluido = async (id: string) => {
     const doc = state.documents.find(d => d.id === id);
@@ -32,6 +48,25 @@ export const Dashboard: React.FC = () => {
       <div>
         <h1 className="text-2xl font-black text-green-800">Bem-vindo, David!</h1>
         <p className="text-gray-500 text-sm">EDI – Gestão de Madeiras</p>
+      </div>
+
+      {/* Month summary */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: 'Romaneios no Mês', value: romaneiosMes.length.toString(), sub: 'documentos', color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'M³ no Mês', value: m3Mes.toFixed(2) + ' m³', sub: 'cubagem total', color: 'text-green-700', bg: 'bg-green-50' },
+          { label: 'Faturamento Mês', value: fmt(totalMes), sub: 'valor total', color: 'text-purple-600', bg: 'bg-purple-50' },
+          { label: 'Comissão do Mês', value: fmt(comissaoMes), sub: '5% sobre romaneios', color: 'text-amber-600', bg: 'bg-amber-50', highlight: true },
+        ].map((s, i) => (
+          <motion.div key={i}
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
+            className={['rounded-xl p-4 border shadow-sm', s.highlight ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'].join(' ')}
+          >
+            <p className={['text-[10px] font-bold uppercase tracking-widest mb-1', s.color].join(' ')}>{s.label}</p>
+            <p className={['text-lg font-black', s.highlight ? 'text-amber-700' : 'text-gray-900'].join(' ')}>{s.value}</p>
+            <p className="text-[10px] text-gray-400">{s.sub}</p>
+          </motion.div>
+        ))}
       </div>
 
       {/* Quick Actions */}
