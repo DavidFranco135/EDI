@@ -7,6 +7,7 @@ export interface DerivedItem {
   m3Auto: number;
   finalM3: number;
   value: number;
+  precoUnitario: number;
 }
 
 export function calcDerived(item: TimberItem): DerivedItem {
@@ -20,7 +21,10 @@ export function calcDerived(item: TimberItem): DerivedItem {
     item.customM3 !== null && item.customM3 !== undefined ? item.customM3 : m3Auto;
   const value = finalM3 * item.pricePerM3;
 
-  return { qtyTotal, linearMeters, avgLength, m3Auto, finalM3, value };
+  // Preço unitário = valor total / quantidade de peças
+  const precoUnitario = qtyTotal > 0 ? value / qtyTotal : 0;
+
+  return { qtyTotal, linearMeters, avgLength, m3Auto, finalM3, value, precoUnitario };
 }
 
 /**
