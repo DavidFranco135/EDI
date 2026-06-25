@@ -210,19 +210,41 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
   };
 
   const handleShare = async () => {
-    const title = `${type.toUpperCase()} Nº ${doc.number}`;
+    const title = `${type.toUpperCase()} Nº ${doc.number} — ${doc.blocos?.[0]?.clientName || doc.clientName || ''}`;
+    const filename = `${type}-${doc.number}.pdf`;
     const html = getHTML();
-    const blob = new Blob([html], { type: 'text/html' });
-    const file = new File([blob], `${type}-${doc.number}.html`, { type: 'text/html' });
-    if (navigator.share) {
-      try {
-        const shareData: ShareData = { title, files: [file] };
-        if ((navigator as any).canShare?.(shareData)) { await navigator.share(shareData); return; }
-        await navigator.share({ title, text: `${title}\nTotal: ${fmt(total)}` });
-        return;
-      } catch {}
+
+    // On mobile: open the document in a new tab with a prominent
+    // "Save as PDF" button. The user taps Share → Print → Save PDF.
+    // This is the only reliable cross-browser way to generate a real PDF on mobile.
+    const win = window.open('', '_blank');
+    if (!win) {
+      alert('Pop-up bloqueado. Permita pop-ups para este site e tente novamente.');
+      return;
     }
-    handlePrint();
+
+    // Inject an extra prominent share/save instruction banner for mobile
+    const shareHTML = html.replace(
+      '<button class="print-btn" onclick="window.print()">&#8595; Salvar como PDF / Imprimir</button>',
+      '<button class="print-btn" onclick="window.print()">&#8595; Salvar como PDF / Imprimir</button>' +
+      '<div style="background:#1B4332;color:#fff;border-radius:10px;padding:14px 16px;margin-bottom:12px;font-size:14px;font-family:Arial,sans-serif">' +
+      '<strong style="display:block;margin-bottom:6px;font-size:15px">&#128247; Como salvar e compartilhar o PDF:</strong>' +
+      '<ol style="margin:0;padding-left:20px;line-height:2">' +
+      '<li>Toque em <strong>"Salvar como PDF / Imprimir"</strong> acima</li>' +
+      '<li>Selecione <strong>Salvar como PDF</strong> (ou impressora PDF)</li>' +
+      '<li>Toque em <strong>Salvar</strong> — o arquivo fica na sua galeria/arquivos</li>' +
+      '<li>Compartilhe o PDF pelo <strong>WhatsApp, e-mail</strong> ou outro app</li>' +
+      '</ol>' +
+      '</div>'
+    );
+
+    win.document.write(shareHTML);
+    win.document.close();
+
+    // On iOS Safari, trigger print dialog automatically after a short delay
+    setTimeout(() => {
+      try { win.print(); } catch {}
+    }, 600);
   };
 
   const s = state.settings;
