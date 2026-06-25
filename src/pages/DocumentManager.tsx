@@ -1,299 +1,518 @@
-import { Document, TimberItem, Bloco } from '../types';
-import { calcDerived } from './calc';
-import { Cheque } from './cheques';
-
-// ── Palette: Deep Forest + Warm Gold ─────────────────────────────────────
-const C_DARK   = '#1B4332';   // deep forest green — headers
-const C_MED    = '#2D6A4F';   // medium green — sub-headers
-const C_GOLD   = '#D4A017';   // warm gold — accent / VALOR
-const C_SAGE   = '#F0F7F4';   // light sage — row alt bg
-const C_WARM   = '#FAFAF8';   // warm white — row bg
-const C_CHAR   = '#2D2D2D';   // charcoal — text
-const C_GOLDBG = '#FDF8EC';   // soft gold bg — totals highlight
-
-// TH is computed inside buildDocHTML using TH_BG/TH_TXT
-const TH_BASE = 'padding:5px 6px;text-align:center;font-weight:bold;font-size:10px';
-const TD = 'border:1px solid #ddd;padding:3px 6px;text-align:center;font-size:10px;color:' + C_CHAR;
-const SUMTD = 'border:1px solid #e0e0e0;padding:7px 14px;font-size:11px;color:' + C_CHAR;
+import React, { useState, useEffect, useMemo } from 'react';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useApp } from '../store/AppContext';
+import { Document, Bloco, TimberItem } from '../types';
+import { TimberCalculator } from '../components/TimberCalculator';
+import { ChequeTable } from '../components/ChequeTable';
+import { Cheque } from '../lib/cheques';
+import { calcDerived } from '../lib/calc';
+import { buildDocHTML } from '../lib/docHTML';
+import { ArrowLeft, Save, Printer, Plus, Share2, Trash2, ChevronDown, ChevronUp, Building2, Leaf } from 'lucide-react';
+import { format } from 'date-fns';
 
 function fmt(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-interface DocHTMLParams {
-  doc: Partial<Document>;
-  type: 'pedido' | 'romaneio';
-  totals: { m3: number; subtotal: number };
-  commission: number;
-  total: number;
-  displayDate: string;
-  client: Record<string, any>;
-  settings: Record<string, any>;
-  cheques?: Cheque[];
-  blocos?: Bloco[];
-  eco?: boolean;  // economic print mode — no color backgrounds
+function newBloco(label = ''): Bloco {
+  return {
+    id: Math.random().toString(36).slice(2, 9),
+    label,
+    clientName: '',
+    clientId: '',
+    items: [],
+  };
 }
 
-export function buildDocHTML(p: DocHTMLParams): string {
-  const { doc, type, totals, commission, total, displayDate, client, settings: s, cheques = [], blocos = [], eco = false } = p;
-
-  // Eco overrides — white backgrounds, only text/borders in color
-  const H_BG   = eco ? '#fff' : C_DARK;      // header bg
-  const H_TXT  = eco ? C_DARK : '#fff';       // header text
-  const TH_BG  = eco ? '#fff' : C_DARK;       // table header bg
-  const TH_TXT = eco ? C_DARK : '#fff';       // table header text
-  const TH_MED = eco ? '#fff' : C_MED;        // sub-header bg
-  const ROW1   = eco ? '#fff' : C_WARM;       // row bg
-  const ROW2   = eco ? '#fff' : C_SAGE;       // row alt bg
-  const GOLD_B = eco ? '#fff' : C_GOLD;       // gold badge bg
-  const GOLD_T = eco ? C_DARK : C_DARK;       // gold badge text
-  const VAL_BG = eco ? '#fff' : C_GOLDBG;    // valor cell bg
-  const M3_BG  = eco ? '#fff' : '#f0faf4';   // m3 cell bg
-  const SUM_BG = eco ? '#fff' : C_SAGE;      // summary row bg
-  const TOT_BG = eco ? '#fff' : C_DARK;      // total row bg
-  const TOT_T  = eco ? C_DARK : '#fff';      // total row text
-  const TPAY_BG= eco ? '#fff' : C_GOLD;      // total a pagar bg
-  const TPAY_T = eco ? C_DARK : C_DARK;      // total a pagar text
-  const BLOC_BG= eco ? '#fff' : C_DARK;      // bloco header bg
-  const BLOC_T = eco ? C_DARK : '#fff';      // bloco header text
-  const BLOC_G = eco ? C_DARK : C_GOLD;      // bloco gold accent
-  const FOOT_BG= eco ? '#fff' : C_SAGE;      // footer box bg
-
-  // Dynamic TH/TD using eco-aware vars
-  const TH = 'border:1px solid ' + C_MED + ';' + TH_BASE + ';background:' + TH_BG + ';color:' + TH_TXT;
-
-  function buildItemRows(items: TimberItem[]): string {
-    const rows = items.map((item: TimberItem, i: number) => {
+function calcBlocoTotals(bloco: Bloco) {
+  return bloco.items.reduce(
+    (acc, item) => {
       const d = calcDerived(item);
-      const bg = i % 2 === 0 ? ROW1 : ROW2;
-      return (
-        '<tr style="background:' + bg + '">' +
-        '<td style="' + TD + '">' + item.espessura + '</td>' +
-        '<td style="' + TD + '">' + item.largura + '</td>' +
-        '<td style="' + TD + ';background:#e8f5ee">' + (item.c3 || '') + '</td>' +
-        '<td style="' + TD + ';background:#e8f5ee">' + (item.c4 || '') + '</td>' +
-        '<td style="' + TD + ';background:#e8f5ee">' + (item.c5 || '') + '</td>' +
-        '<td style="' + TD + ';background:#e8f5ee">' + (item.c6 || '') + '</td>' +
-        '<td style="' + TD + ';font-weight:bold">' + (d.qtyTotal || '') + '</td>' +
-        '<td style="' + TD + '">' + d.linearMeters.toFixed(3) + '</td>' +
-        '<td style="' + TD + ';font-weight:bold">' + (item.pricePerM3 ? fmt(item.pricePerM3) : '') + '</td>' +
-        '<td style="' + TD + ';font-weight:bold;color:#444">' + (d.precoUnitario > 0 ? d.precoUnitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—') + '</td>' +
-        '<td style="border:1px solid #c8e6d8;padding:3px 6px;text-align:center;font-size:10px;font-weight:bold;color:' + C_DARK + ';background:' + M3_BG + '">' + d.finalM3.toFixed(4) + '</td>' +
-        '<td style="border:1px solid #e8d090;padding:3px 6px;text-align:right;font-size:10px;color:' + C_DARK + ';font-weight:bold;background:' + VAL_BG + '">' + fmt(d.value) + '</td>' +
-        '</tr>'
-      );
-    });
-    const minEmpty = Math.max(0, 5 - rows.length);
-    const empty = Array.from({ length: minEmpty }).map((_, i) => {
-      const bg = (rows.length + i) % 2 === 0 ? ROW1 : ROW2;
-      return '<tr style="background:' + bg + '">' +
-        Array.from({ length: 12 }).map(() => '<td style="' + TD + ';height:20px"></td>').join('') +
-        '</tr>';
-    });
-    return rows.join('') + empty.join('');
-  }
-
-  // Use blocos if available, otherwise fall back to legacy items
-  const activeBlocos: Bloco[] = blocos.length > 0
-    ? blocos
-    : [{ id: 'main', label: '', clientName: doc.clientName || '', items: doc.items || [] }];
-
-  const isMultiBloco = activeBlocos.length > 1;
-
-  // Build table section(s)
-  function buildTableSection(items: TimberItem[]): string {
-    const qtyT = items.reduce((s: number, it: TimberItem) => s + calcDerived(it).qtyTotal, 0);
-    const m3T = items.reduce((s: number, it: TimberItem) => s + calcDerived(it).finalM3, 0);
-    const valT = items.reduce((s: number, it: TimberItem) => s + calcDerived(it).value, 0);
-    return (
-      '<table style="margin-bottom:4px;font-size:9px">' +
-      '<thead>' +
-      '<tr style="background:#1a5c34;color:#fff">' +
-      '<th style="' + TH + '" rowspan="2">Bitola<br>(cm)</th>' +
-      '<th style="' + TH + '" rowspan="2">Larg.<br>(cm)</th>' +
-      '<th style="' + TH + ';background:' + TH_MED + ';color:' + TH_TXT + ';font-size:8px;letter-spacing:0.5px" colspan="4">Comprimento (m) — Qtd de Peças</th>' +
-      '<th style="' + TH + '" rowspan="2">Qtd<br>Pcs</th>' +
-      '<th style="' + TH + '" rowspan="2">Metros<br>Lin.</th>' +
-      '<th style="' + TH + '" rowspan="2">R$/m3</th>' +
-      '<th style="' + TH + '" rowspan="2">Preco<br>Unit.</th>' +
-      '<th style="border:1px solid ' + C_MED + ';padding:5px 6px;text-align:center;font-weight:bold;font-size:10px;background:' + TH_MED + ';color:' + TH_TXT + '" rowspan="2">M³</th>' +
-      '<th style="border:1px solid ' + C_GOLD + ';padding:5px 6px;text-align:center;font-weight:bold;font-size:10px;background:' + C_GOLD + ';color:' + C_DARK + '" rowspan="2">VALOR</th>' +
-      '</tr>' +
-      '<tr style="background:' + TH_MED + ';color:' + TH_TXT + '">' +
-      '<th style="' + TH + '">3,00</th><th style="' + TH + '">4,00</th><th style="' + TH + '">5,00</th><th style="' + TH + '">6,00</th>' +
-      '</tr></thead>' +
-      '<tbody>' + buildItemRows(items) + '</tbody>' +
-      '<tfoot><tr style="background:' + TOT_BG + ';color:' + TOT_T + ';font-weight:bold;border-top:3px solid ' + C_GOLD + '">' +
-      '<td colspan="6" style="' + TD + '"></td>' +
-      '<td style="' + TD + ';text-align:center;font-size:11px">' + qtyT + '</td>' +
-      '<td colspan="3" style="' + TD + '"></td>' +
-      '<td style="border:1px solid rgba(255,255,255,0.2);padding:3px 6px;text-align:right;font-size:9px;color:' + (eco ? '#555' : 'rgba(255,255,255,0.7)') + '">Total m³: <span style="color:' + TOT_T + ';font-weight:900;font-size:12px">' + m3T.toFixed(4) + '</span></td>' +
-      '<td style="border:1px solid ' + C_GOLD + ';padding:3px 6px;text-align:right;font-size:12px;font-weight:900;background:' + C_GOLD + ';color:' + TPAY_BG + ';color:' + TPAY_T + ';border:1px solid ' + C_GOLD + '">' + fmt(valT) + '</td>' +
-      '</tr></tfoot></table>'
-    );
-  }
-
-  // Build all bloco sections
-  const tablesSections = activeBlocos.map((bloco: Bloco) => {
-    const bc = bloco.clientData as any || {};
-    const blocoClient = bc;
-    const blocoHeader = isMultiBloco
-      ? '<div style="background:' + BLOC_BG + ';border:1px solid ' + C_DARK + ';border-radius:6px 6px 0 0;padding:6px 12px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid ' + C_GOLD + '">' +
-        '<span style="font-weight:900;font-size:11px;color:' + BLOC_T + ';text-transform:uppercase;letter-spacing:1px">&#127970; ' + (bloco.label || 'Bloco') + '</span>' +
-        '<span style="font-size:10px;color:' + BLOC_G + ';font-weight:bold">' + (bloco.clientName || '') + (blocoClient.city ? ' — ' + blocoClient.city : '') + '</span>' +
-        '</div>'
-      : '';
-    return blocoHeader + buildTableSection(bloco.items);
-  }).join('');
-
-  const qtyTotal = activeBlocos.reduce((s: number, b: Bloco) =>
-    s + b.items.reduce((ss: number, it: TimberItem) => ss + calcDerived(it).qtyTotal, 0), 0);
-
-  // Conditional rows
-  const freteRow = (type === 'romaneio' && (doc.freight || 0) > 0)
-    ? '<tr style="background:#fff8f0"><td style="' + SUMTD + '">– Frete</td><td style="' + SUMTD + ';font-weight:bold;text-align:right;color:#b45309">' + fmt(doc.freight || 0) + '</td></tr>'
-    : '';
-  const commRow = (type === 'romaneio' && commission > 0)
-    ? '<tr style="background:#fffbeb"><td style="' + SUMTD + '">– Comissão</td><td style="' + SUMTD + ';font-weight:bold;text-align:right;color:#92400e">' + fmt(commission) + '</td></tr>'
-    : '';
-  const settlRow = (type === 'romaneio' && (doc.settlement || 0) > 0)
-    ? '<tr style="background:#fff0f0"><td style="' + SUMTD + '">– Acerto escritório</td><td style="' + SUMTD + ';font-weight:bold;text-align:right;color:#b91c1c">' + fmt(doc.settlement || 0) + '</td></tr>'
-    : '';
-
-  const notesBar = doc.notes
-    ? '<div style="background:' + C_GOLDBG + ';border-left:4px solid ' + C_GOLD + ';padding:6px 12px;font-size:9px;font-weight:bold;color:#7a5c00;margin-bottom:6px">' + doc.notes + '</div>'
-    : '';
-
-  const supplierRow = doc.supplier
-    ? '<div><strong>FORNECEDOR:</strong> <span style="font-weight:bold;text-transform:uppercase">' + doc.supplier + '</span></div>'
-    : '';
-  const phoneRow = client.phone ? '<div><strong>FONE:</strong> ' + client.phone + '</div>' : '';
-  const addrRow = client.address ? '<div><strong>ENDEREÇO:</strong> ' + client.address + (client.neighborhood ? ', ' + client.neighborhood : '') + '</div>' : '';
-  const cityRow = client.city ? '<div><strong>MUNICÍPIO:</strong> ' + client.city + (client.state ? ' — ' + client.state : '') + '</div>' : '';
-  const cepRow = client.cep ? '<div><strong>CEP:</strong> ' + client.cep + '</div>' : '';
-  const cnpjRow = client.cnpj ? '<div><strong>CNPJ/CPF:</strong> ' + client.cnpj + '</div>' : '';
-  const ieRow = client.ie ? '<div><strong>INS. EST.:</strong> ' + client.ie + '</div>' : '';
-  const clientPhone = client.phone ? '<div style="font-size:9px;color:#666;margin-top:2px">' + client.phone + '</div>' : '';
-
-
-  const emittedDate = new Date().toLocaleDateString('pt-BR');
-
-  let html = '<!DOCTYPE html>\n' +
-    '<html lang="pt-BR">\n' +
-    '<head>\n' +
-    '<meta charset="UTF-8"/>\n' +
-    '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>\n' +
-    '<title>' + type.toUpperCase() + ' No ' + doc.number + '</title>\n' +
-    '<style>\n' +
-    '  @page { size: A4 portrait; margin: 8mm; }\n' +
-    '  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }\n' +
-    '  html, body { height: 100%; }\n' +
-    '  body { font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #000; background: #e8e8e8; padding: 12px; }\n' +
-    '  table { border-collapse: collapse; width: 100%; }\n' +
-    '  .page { background: #fff; border-radius: 8px; box-shadow: 0 2px 16px rgba(0,0,0,0.15); padding: 20px; width: 100%; max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; min-height: calc(100vh - 100px); }\n' +
-    '  .content { flex: 1; }\n' +
-    '  .print-btn { display: block; width: 100%; padding: 18px; background: #1a5c34; color: #fff; font-size: 18px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; margin-bottom: 16px; }\n' +
-    '  .print-btn:active { background: #155228; }\n' +
-    '  @media print {\n' +
-    '    body { padding: 0; background: #fff; font-size: 9px; }\n' +
-    '    .print-btn { display: none !important; }\n' +
-    '    .page { padding: 0; box-shadow: none; border-radius: 0; min-height: 100vh; }\n' +
-    '  }\n' +
-    '</style>\n' +
-    '</head>\n' +
-    '<body>\n' +
-    '<button class="print-btn" onclick="window.print()">&#8595; Salvar como PDF / Imprimir</button>\n' +
-    '<div class="page"><div class="content">\n' +
-
-    // Header
-    '<div style="background:' + H_BG + ';padding:16px 18px;border-radius:8px 8px 0 0;border-bottom:3px solid ' + C_GOLD + '">' +
-    '<table><tr>' +
-    '<td style="vertical-align:middle;width:70px;padding-right:12px"><div style="width:62px;height:62px;background:#fff;border-radius:8px;font-size:36px;text-align:center;line-height:62px">&#127794;</div></td>' +
-    '<td style="vertical-align:middle">' +
-    '<div style="font-size:18px;font-weight:900;color:' + H_TXT + ';text-transform:uppercase">' + s.companyName + '</div>' +
-    '<div style="font-size:10px;color:' + (eco ? C_MED : '#a7f3c0') + ';font-weight:bold;text-transform:uppercase;letter-spacing:2px;margin-top:2px">' + s.companyNeighborhood + '</div>' +
-    '<div style="font-size:9px;color:' + (eco ? '#555' : '#d1fae5') + ';margin-top:3px">' + s.companyAddress + ' — ' + s.companyCity + ' | CEP: ' + s.companyCEP + '</div>' +
-    '<div style="font-size:9px;color:' + (eco ? '#555' : '#d1fae5') + '">TEL: ' + s.companyPhone + ' | CNPJ: ' + s.companyCNPJ + ' | ' + s.companyEmail + '</div>' +
-    '</td>' +
-    '<td style="vertical-align:middle;text-align:right;padding-left:12px;white-space:nowrap">' +
-    '<div style="display:inline-block;background:#fff;color:#1a5c34;font-weight:900;font-size:20px;padding:6px 18px;text-transform:uppercase;border-radius:6px;margin-bottom:6px">' + type.toUpperCase() + '</div>' +
-    '<div style="color:' + (eco ? C_MED : '#a7f3c0') + ';font-size:10px;font-weight:bold">DATA: <span style="color:' + H_TXT + '">' + displayDate + '</span></div>' +
-    '<div style="color:' + (eco ? C_MED : '#a7f3c0') + ';font-size:10px;font-weight:bold">N&ordm; <span style="color:' + H_TXT + ';font-size:16px;font-weight:900">' + doc.number + '</span></div>' +
-    '</td></tr></table></div>' +
-
-    // Client data
-    '<div style="border:1px solid #d0e8d8;border-top:none;padding:10px 14px;margin-bottom:6px;background:' + C_WARM + '">' +
-    '<table><tr>' +
-    '<td style="width:58%;vertical-align:top;padding-right:12px">' +
-    '<div style="margin-bottom:2px"><strong>CLIENTE:</strong> <span style="text-transform:uppercase;font-weight:900;font-size:12px;color:#1a5c34">' + (doc.clientName || client.name || '—') + '</span></div>' +
-    addrRow + cityRow + cepRow + cnpjRow + ieRow +
-    '</td>' +
-    '<td style="vertical-align:top;border-left:1px dashed #ccc;padding-left:12px">' +
-    supplierRow + phoneRow +
-    '<div><strong>COND. PAGTO:</strong> ' + (doc.paymentTerms || '—') + '</div>' +
-    '<div><strong>FRETE:</strong> INCLUSO</div>' +
-    '</td></tr></table></div>' +
-
-    notesBar +
-    // Tables (one per bloco)
-    tablesSections;
-
-  // Build cheques HTML string
-  const chequesHTML: string = cheques.length > 0 ? (
-    '<table style="width:100%;border-collapse:collapse;font-size:9px">' +
-    '<thead><tr style="background:#1a5c34;color:#fff">' +
-    '<th style="padding:3px 5px;text-align:left;font-size:8px">No</th>' +
-    '<th style="padding:3px 5px;text-align:center;font-size:8px">Prazo</th>' +
-    '<th style="padding:3px 5px;text-align:center;font-size:8px">Vencimento</th>' +
-    '<th style="padding:3px 5px;text-align:right;font-size:8px">Valor</th>' +
-    '</tr></thead><tbody>' +
-    cheques.map((c: Cheque, i: number) =>
-      '<tr style="background:' + (i % 2 === 0 ? '#fff' : '#f0faf4') + '">' +
-      '<td style="padding:2px 5px;font-size:8px;color:#555">' + String(i + 1).padStart(2, '0') + '</td>' +
-      '<td style="padding:2px 5px;text-align:center;font-size:8px;color:#555">' + c.dias + 'd</td>' +
-      '<td style="padding:2px 5px;text-align:center;font-weight:bold;font-size:9px">' + c.vencimento + '</td>' +
-      '<td style="padding:2px 5px;text-align:right;font-weight:bold;font-size:9px;color:#1a5c34">' + fmt(c.valor) + '</td>' +
-      '</tr>'
-    ).join('') +
-    '</tbody><tfoot><tr style="background:#1a5c34;color:#fff">' +
-    '<td colspan="3" style="padding:2px 5px;font-size:8px;font-weight:bold">' + cheques.length + ' cheque' + (cheques.length > 1 ? 's' : '') + '</td>' +
-    '<td style="padding:2px 5px;text-align:right;font-weight:bold;font-size:9px">' + fmt(cheques.reduce((acc: number, c: Cheque) => acc + c.valor, 0)) + '</td>' +
-    '</tr></tfoot></table>'
-  ) : '';
-
-    // Totals + obs + cheques
-  html +=
-    '<table style="margin-top:8px;margin-bottom:8px"><tr>' +
-    (chequesHTML ? ('<td style="width:55%;vertical-align:top;padding-right:12px">' +
-      '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:4px">Cheques / Parcelas</div>' +
-      chequesHTML + '</td>') : '') +
-    '<td style="vertical-align:top;' + (chequesHTML ? 'width:45%' : 'width:100%') + '">' +
-    '<table style="border:2px solid ' + C_DARK + ';border-radius:6px;overflow:hidden;font-size:10px">' +
-    '<tr style="background:' + SUM_BG + '"><td style="' + SUMTD + '"><strong style="color:' + C_DARK + '">Total em M³</strong></td><td style="' + SUMTD + ';font-weight:bold;color:' + C_DARK + ';text-align:right;font-size:13px">' + totals.m3.toFixed(4) + ' m³</td></tr>' +
-    '<tr><td style="' + SUMTD + '">Subtotal Madeira</td><td style="' + SUMTD + ';font-weight:bold;text-align:right">' + fmt(totals.subtotal) + '</td></tr>' +
-    freteRow + commRow + settlRow +
-    '<tr style="background:' + TOT_BG + ';border-top:3px solid ' + C_GOLD + '"><td style="' + SUMTD + ';color:' + TOT_T + ';font-weight:900;font-size:13px;letter-spacing:0.5px">TOTAL A PAGAR</td><td style="border:1px solid ' + C_GOLD + ';padding:7px 14px;font-size:17px;font-weight:900;text-align:right;background:' + TPAY_BG + ';color:' + TPAY_T + '">' + fmt(total) + '</td></tr>' +
-    '</table></td></tr></table>' +
-
-    // Footer names
-    '<div style="border-top:3px solid ' + C_GOLD + ';margin-top:12px;padding-top:10px">' +
-    '<table><tr>' +
-    '<td style="width:33%;padding:6px 10px"><div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">' +
-    '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:' + C_MED + ';letter-spacing:1.5px;margin-bottom:3px">Cliente</div>' +
-    '<div style="font-weight:900;font-size:11px;text-transform:uppercase;color:' + C_DARK + '">' + (doc.clientName || client.name || '—') + '</div>' +
-    clientPhone + '</div></td>' +
-    '<td style="width:34%;padding:6px 10px"><div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">' +
-    '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:' + C_MED + ';letter-spacing:1.5px;margin-bottom:3px">Fornecedor / Fábrica</div>' +
-    '<div style="font-weight:900;font-size:11px;text-transform:uppercase;color:' + C_DARK + '">' + (doc.supplier || '—') + '</div>' +
-    '</div></td>' +
-    '<td style="width:33%;padding:6px 10px"><div style="background:#f0faf4;border:1px solid #1a5c34;border-radius:6px;padding:8px 10px">' +
-    '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:' + C_MED + ';letter-spacing:1.5px;margin-bottom:3px">Motorista</div>' +
-    '<div style="font-weight:900;font-size:11px;text-transform:uppercase;color:' + C_DARK + '">' + (doc.motorista || '—') + '</div>' +
-    '</div></td>' +
-    '</tr></table>' +
-    '<div style="text-align:center;margin-top:8px;font-size:8px;color:#999;letter-spacing:0.5px">EDI – Gestão de Madeiras &nbsp;|&nbsp; ' + s.companyPhone + ' &nbsp;|&nbsp; ' + s.companyEmail + ' &nbsp;|&nbsp; Emitido em ' + emittedDate + '</div>' +
-    '</div>' +
-
-    '</div></div></div></body></html>';
-  return html;
+      acc.m3 += d.finalM3;
+      acc.subtotal += d.value;
+      return acc;
+    },
+    { m3: 0, subtotal: 0 }
+  );
 }
+
+export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ type }) => {
+  const { state, saveDocument } = useApp();
+  const navigate = useNavigate();
+  const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const fromPedidoId = searchParams.get('from');
+
+  const nextNumber = () =>
+    (state.documents.filter(d => d.type === type).length + 1)
+      .toString().padStart(3, '0');
+
+  const [doc, setDoc] = useState<Partial<Document>>({
+    type,
+    number: nextNumber(),
+    date: new Date().toISOString().split('T')[0],
+    clientId: '',
+    clientName: '',
+    supplier: '',
+    blocos: [newBloco('Principal')],
+    items: [],
+    subtotal: 0,
+    totalM3: 0,
+    total: 0,
+    freight: 0,
+    commissionPct: state.settings.defaultCommissionPct,
+    commissionValue: 0,
+    settlement: 0,
+    motorista: '',
+    status: 'andamento',
+    paymentTerms: 'À VISTA',
+    cheques: [],
+    notes: type === 'romaneio'
+      ? 'O FRETE SERÁ PAGO À VISTA AO TRANSPORTADOR NO ATO DA DESCARGA, DEDUZIDO DO MATERIAL. MANDAR O PAGAMENTO DA MADEIRA PELO MOTORISTA.'
+      : '',
+  });
+
+  const [collapsedBlocos, setCollapsedBlocos] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (id) {
+      const ex = state.documents.find(d => d.id === id);
+      if (ex) {
+        // Migrate legacy doc (no blocos) to bloco format
+        if (!ex.blocos || ex.blocos.length === 0) {
+          setDoc({
+            ...ex,
+            blocos: [{
+              id: 'main',
+              label: 'Principal',
+              clientId: ex.clientId,
+              clientName: ex.clientName,
+              clientData: ex.clientData,
+              items: ex.items || [],
+            }],
+          });
+        } else {
+          setDoc(ex);
+        }
+      }
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (fromPedidoId && type === 'romaneio') {
+      const pedido = state.documents.find(d => d.id === fromPedidoId);
+      if (pedido) {
+        const blocos = pedido.blocos && pedido.blocos.length > 0
+          ? pedido.blocos.map(b => ({
+              ...b,
+              id: Math.random().toString(36).slice(2, 9),
+              items: b.items.map(i => ({ ...i, id: Math.random().toString(36).slice(2, 9) })),
+            }))
+          : [{
+              id: Math.random().toString(36).slice(2, 9),
+              label: 'Principal',
+              clientId: pedido.clientId,
+              clientName: pedido.clientName,
+              clientData: pedido.clientData,
+              items: pedido.items.map(i => ({ ...i, id: Math.random().toString(36).slice(2, 9) })),
+            }];
+        setDoc(prev => ({
+          ...prev,
+          supplier: pedido.supplier || '',
+          paymentTerms: pedido.paymentTerms,
+          blocos,
+        }));
+      }
+    }
+  }, [fromPedidoId]);
+
+  // ── Totals across ALL blocos ──────────────────────────────────────────────
+  const totals = useMemo(() => {
+    return (doc.blocos || []).reduce(
+      (acc, bloco) => {
+        const bt = calcBlocoTotals(bloco);
+        acc.m3 += bt.m3;
+        acc.subtotal += bt.subtotal;
+        return acc;
+      },
+      { m3: 0, subtotal: 0 }
+    );
+  }, [doc.blocos]);
+
+  const commission = doc.commissionPct ? totals.subtotal * (doc.commissionPct / 100) : 0;
+  const total = type === 'romaneio'
+    ? totals.subtotal - (doc.freight || 0) - commission - (doc.settlement || 0)
+    : totals.subtotal;
+
+  const displayDate = doc.date && !isNaN(new Date(doc.date).getTime())
+    ? format(new Date(doc.date + 'T12:00:00'), 'dd/MM/yyyy')
+    : '—';
+
+  // ── Bloco helpers ─────────────────────────────────────────────────────────
+  const updateBloco = (blocoId: string, patch: Partial<Bloco>) =>
+    setDoc(p => ({ ...p, blocos: (p.blocos || []).map(b => b.id === blocoId ? { ...b, ...patch } : b) }));
+
+  const addBloco = () =>
+    setDoc(p => ({ ...p, blocos: [...(p.blocos || []), newBloco(`Loja ${(p.blocos || []).length + 1}`)] }));
+
+  const removeBloco = (blocoId: string) =>
+    setDoc(p => ({ ...p, blocos: (p.blocos || []).filter(b => b.id !== blocoId) }));
+
+  const toggleBloco = (blocoId: string) =>
+    setCollapsedBlocos(prev => ({ ...prev, [blocoId]: !prev[blocoId] }));
+
+  const handleBlocoClientSelect = (blocoId: string, clientId: string) => {
+    const c = state.clients.find(x => x.id === clientId);
+    updateBloco(blocoId, {
+      clientId,
+      clientName: c?.name || '',
+      clientData: c ? { ...c } : undefined,
+    });
+  };
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+  const handleSave = async () => {
+    const now = new Date().toISOString();
+    const finalDoc: Document = {
+      ...doc,
+      id: doc.id || Math.random().toString(36).slice(2, 11),
+      clientName: doc.blocos?.[0]?.clientName || doc.clientName || '—',
+      items: doc.blocos?.flatMap(b => b.items) || [],
+      subtotal: totals.subtotal,
+      totalM3: totals.m3,
+      commissionValue: commission,
+      total,
+      createdAt: doc.createdAt || now,
+      updatedAt: now,
+    } as Document;
+    await saveDocument(finalDoc);
+    navigate('/relatorios');
+  };
+
+  const getHTML = (eco = false) => buildDocHTML({
+    doc,
+    type,
+    totals,
+    commission,
+    total,
+    displayDate,
+    client: (doc.blocos?.[0]?.clientData || state.clients.find(c => c.id === doc.blocos?.[0]?.clientId) || {}) as Record<string, any>,
+    settings: state.settings,
+    cheques: doc.cheques || [],
+    blocos: doc.blocos || [],
+    eco,
+  });
+
+  const handlePrint = () => {
+    const win = window.open('', '_blank');
+    if (!win) { alert('Pop-up bloqueado. Permita pop-ups para este site e tente novamente.'); return; }
+    win.document.write(getHTML(false));
+    win.document.close();
+  };
+
+  const handlePrintEco = () => {
+    const win = window.open('', '_blank');
+    if (!win) { alert('Pop-up bloqueado. Permita pop-ups para este site e tente novamente.'); return; }
+    win.document.write(getHTML(true));
+    win.document.close();
+  };
+
+  const handleShare = async () => {
+    const title = `${type.toUpperCase()} Nº ${doc.number} — ${doc.blocos?.[0]?.clientName || doc.clientName || ''}`;
+    const filename = `${type}-${doc.number}.pdf`;
+    const html = getHTML();
+
+    // On mobile: open the document in a new tab with a prominent
+    // "Save as PDF" button. The user taps Share → Print → Save PDF.
+    // This is the only reliable cross-browser way to generate a real PDF on mobile.
+    const win = window.open('', '_blank');
+    if (!win) {
+      alert('Pop-up bloqueado. Permita pop-ups para este site e tente novamente.');
+      return;
+    }
+
+    // Inject an extra prominent share/save instruction banner for mobile
+    const shareHTML = html.replace(
+      '<div class="btn-wrap"><button class="print-btn" onclick="window.print()">&#8595; Salvar como PDF / Imprimir</button></div>',
+      '<div class="btn-wrap"><button class="print-btn" onclick="window.print()">&#8595; Salvar como PDF / Imprimir</button></div>' +
+      '<div style="background:#1B4332;color:#fff;border-radius:10px;padding:14px 16px;margin-bottom:12px;font-size:14px;font-family:Arial,sans-serif">' +
+      '<strong style="display:block;margin-bottom:6px;font-size:15px">&#128247; Como salvar e compartilhar o PDF:</strong>' +
+      '<ol style="margin:0;padding-left:20px;line-height:2">' +
+      '<li>Toque em <strong>"Salvar como PDF / Imprimir"</strong> acima</li>' +
+      '<li>Selecione <strong>Salvar como PDF</strong> (ou impressora PDF)</li>' +
+      '<li>Toque em <strong>Salvar</strong> — o arquivo fica na sua galeria/arquivos</li>' +
+      '<li>Compartilhe o PDF pelo <strong>WhatsApp, e-mail</strong> ou outro app</li>' +
+      '</ol>' +
+      '</div>'
+    );
+
+    win.document.write(shareHTML);
+    win.document.close();
+
+    // On iOS Safari, trigger print dialog automatically after a short delay
+    setTimeout(() => {
+      try { win.print(); } catch {}
+    }, 600);
+  };
+
+  const s = state.settings;
+  const blocos = doc.blocos || [];
+
+  return (
+    <div className="space-y-5 pb-32">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Link to="/relatorios" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <ArrowLeft className="w-5 h-5 text-gray-500" />
+          </Link>
+          <div>
+            <h1 className="text-xl font-black text-green-800 capitalize">
+              {type === 'pedido' ? 'Pedido' : 'Romaneio'} — Nº {doc.number}
+            </h1>
+            <p className="text-xs text-gray-400 uppercase tracking-widest">
+              {blocos.length > 1 ? `${blocos.length} lojas/blocos` : id ? 'Editando' : 'Novo documento'}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={handleShare}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-md transition-all active:scale-95">
+            <Share2 className="w-4 h-4" /> Compartilhar
+          </button>
+          <button onClick={handlePrint}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-green-700 text-white rounded-xl text-sm font-bold hover:bg-green-800 shadow-md transition-all active:scale-95">
+            <Printer className="w-4 h-4" /> PDF Colorido
+          </button>
+          <button onClick={handlePrintEco}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-white border-2 border-green-700 text-green-800 rounded-xl text-sm font-bold hover:bg-green-50 shadow-md transition-all active:scale-95">
+            <Leaf className="w-4 h-4" /> PDF Econômico
+          </button>
+          <button onClick={handleSave}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-800 text-white rounded-xl text-sm font-bold hover:bg-gray-900 shadow-md transition-all active:scale-95">
+            <Save className="w-4 h-4" /> Salvar
+          </button>
+        </div>
+      </div>
+
+      {/* Doc-level fields */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nº Documento</label>
+          <input value={doc.number || ''} onChange={e => setDoc(p => ({ ...p, number: e.target.value }))}
+            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Data</label>
+          <input type="date" value={doc.date || ''} onChange={e => setDoc(p => ({ ...p, date: e.target.value }))}
+            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+        </div>
+        <div className="space-y-1 md:col-span-2">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Fornecedor / Fábrica</label>
+          <input value={doc.supplier || ''} onChange={e => setDoc(p => ({ ...p, supplier: e.target.value }))}
+            placeholder="Nome da fábrica..."
+            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Condição Pagamento</label>
+          <input value={doc.paymentTerms || ''} onChange={e => setDoc(p => ({ ...p, paymentTerms: e.target.value }))}
+            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nome do Motorista</label>
+          <input value={doc.motorista || ''} onChange={e => setDoc(p => ({ ...p, motorista: e.target.value }))}
+            placeholder="Ex: João da Silva"
+            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+        </div>
+        {type === 'romaneio' && <>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Frete (R$)</label>
+            <input type="number" value={doc.freight || ''} onChange={e => setDoc(p => ({ ...p, freight: parseFloat(e.target.value) || 0 }))}
+              className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Comissão (%)</label>
+            <input type="number" value={doc.commissionPct ?? ''} onChange={e => setDoc(p => ({ ...p, commissionPct: parseFloat(e.target.value) || 0 }))}
+              className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Acerto escritório (R$)</label>
+            <input type="number" value={doc.settlement || ''} onChange={e => setDoc(p => ({ ...p, settlement: parseFloat(e.target.value) || 0 }))}
+              className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+          </div>
+        </>}
+        <div className="space-y-1 md:col-span-2 lg:col-span-4">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Observações</label>
+          <textarea value={doc.notes || ''} onChange={e => setDoc(p => ({ ...p, notes: e.target.value }))}
+            className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none resize-none" rows={2} />
+        </div>
+      </div>
+
+      {/* ── BLOCOS ── */}
+      <div className="space-y-4">
+        {blocos.map((bloco, bi) => {
+          const bt = calcBlocoTotals(bloco);
+          const isCollapsed = collapsedBlocos[bloco.id];
+          return (
+            <div key={bloco.id} className="bg-white border-2 border-green-200 rounded-xl shadow-sm overflow-hidden">
+              {/* Bloco header */}
+              <div className="flex items-center justify-between px-4 py-3 bg-green-50 border-b border-green-200 gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-8 h-8 bg-green-700 text-white rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0">
+                    {bi + 1}
+                  </div>
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <Building2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    <input
+                      value={bloco.label}
+                      onChange={e => updateBloco(bloco.id, { label: e.target.value })}
+                      placeholder="Nome da loja / local..."
+                      className="font-black text-green-800 bg-transparent border-b-2 border-dashed border-green-300 focus:border-green-600 outline-none text-sm flex-1 min-w-0 py-0.5"
+                    />
+                  </div>
+                  {bt.m3 > 0 && (
+                    <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                      {bt.m3.toFixed(3)} m³ · {fmt(bt.subtotal)}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button onClick={() => toggleBloco(bloco.id)}
+                    className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition-all">
+                    {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                  </button>
+                  {blocos.length > 1 && (
+                    <button onClick={() => removeBloco(bloco.id)}
+                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {!isCollapsed && (
+                <div className="p-4 space-y-4">
+                  {/* Bloco client */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                          {type === 'pedido' ? 'Destinatário' : 'Cliente'}
+                        </label>
+                        <Link to="/clientes" className="text-[9px] font-bold text-green-700 hover:underline flex items-center gap-1">
+                          <Plus className="w-2.5 h-2.5" /> Cadastrar
+                        </Link>
+                      </div>
+                      <select value={bloco.clientId || ''}
+                        onChange={e => handleBlocoClientSelect(bloco.id, e.target.value)}
+                        className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none">
+                        <option value="">— Selecionar —</option>
+                        {state.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                      {!bloco.clientId && (
+                        <input value={bloco.clientName || ''}
+                          onChange={e => updateBloco(bloco.id, { clientName: e.target.value })}
+                          placeholder="Ou digitar nome manualmente..."
+                          className="w-full mt-1 p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+                      )}
+                    </div>
+                    {bloco.clientData && (
+                      <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500 space-y-0.5">
+                        {(bloco.clientData as any).address && <p>📍 {(bloco.clientData as any).address}</p>}
+                        {(bloco.clientData as any).city && <p>🏙 {(bloco.clientData as any).city}</p>}
+                        {(bloco.clientData as any).phone && <p>📞 {(bloco.clientData as any).phone}</p>}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bloco calculator */}
+                  <TimberCalculator
+                    items={bloco.items}
+                    onChange={items => updateBloco(bloco.id, { items })}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Add bloco button */}
+        <button onClick={addBloco}
+          className="w-full py-3 border-2 border-dashed border-green-300 text-green-700 rounded-xl font-bold text-sm hover:border-green-500 hover:bg-green-50 transition-all flex items-center justify-center gap-2">
+          <Plus className="w-4 h-4" /> Adicionar Loja / Bloco
+        </button>
+      </div>
+
+      {/* Cheques — romaneio only */}
+      {type === 'romaneio' && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <ChequeTable
+            cheques={doc.cheques || []}
+            onChange={cheques => setDoc(p => ({ ...p, cheques }))}
+            total={total}
+            paymentTerms={doc.paymentTerms || ''}
+            docDate={doc.date || ''}
+          />
+        </div>
+      )}
+
+      {/* Live totals */}
+      <div className="bg-green-700 text-white rounded-xl p-4 shadow-md">
+        {blocos.length > 1 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 pb-3 border-b border-green-600">
+            {blocos.map((b, i) => {
+              const bt = calcBlocoTotals(b);
+              return (
+                <div key={b.id} className="bg-green-600 rounded-lg p-2">
+                  <p className="text-green-300 text-[10px] font-bold truncate">{b.label || `Bloco ${i + 1}`}</p>
+                  <p className="text-white text-xs font-black">{bt.m3.toFixed(3)} m³</p>
+                  <p className="text-green-200 text-[10px]">{fmt(bt.subtotal)}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
+          <div>
+            <p className="text-green-300 text-xs font-bold uppercase tracking-wider">Total M³</p>
+            <p className="text-xl font-black">{totals.m3.toFixed(4)}</p>
+          </div>
+          <div>
+            <p className="text-green-300 text-xs font-bold uppercase tracking-wider">Subtotal</p>
+            <p className="text-xl font-black">{fmt(totals.subtotal)}</p>
+          </div>
+          {type === 'romaneio' && (doc.freight || 0) > 0 && (
+            <div>
+              <p className="text-green-300 text-xs font-bold uppercase tracking-wider">– Frete</p>
+              <p className="text-xl font-black text-red-300">{fmt(doc.freight || 0)}</p>
+            </div>
+          )}
+          {type === 'romaneio' && commission > 0 && (
+            <div>
+              <p className="text-green-300 text-xs font-bold uppercase tracking-wider">– Comissão</p>
+              <p className="text-xl font-black text-red-300">{fmt(commission)}</p>
+            </div>
+          )}
+          <div>
+            <p className="text-green-300 text-xs font-bold uppercase tracking-wider">Total a Pagar</p>
+            <p className="text-2xl font-black text-yellow-300">{fmt(total)}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <button onClick={handleShare}
+            className="py-3 bg-blue-600 text-white rounded-lg font-black text-sm hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2">
+            <Share2 className="w-4 h-4" /> Compartilhar
+          </button>
+          <button onClick={handlePrint}
+            className="py-2.5 bg-white text-green-800 rounded-lg font-black text-sm hover:bg-green-50 active:scale-95 transition-all flex items-center justify-center gap-1.5">
+            <Printer className="w-4 h-4" /> PDF Colorido
+          </button>
+          <button onClick={handlePrintEco}
+            className="py-2.5 bg-green-600 text-white rounded-lg font-black text-sm hover:bg-green-500 active:scale-95 transition-all flex items-center justify-center gap-1.5">
+            <Leaf className="w-4 h-4" /> PDF Econômico
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
