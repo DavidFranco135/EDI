@@ -37,8 +37,7 @@ export interface Document {
   date: string;
   clientId?: string;
   clientName: string;
-  clientData?: Partial<Client>;
-  supplier?: string;       // fornecedor (pedido)
+  clientData?: Partial<Client>;       // fornecedor (pedido)
   items: TimberItem[];
   subtotal: number;
   totalM3: number;
@@ -50,9 +49,10 @@ export interface Document {
   paymentTerms?: string;
   notes: string;
   motorista?: string;
-  status?: 'andamento' | 'concluido';
-  romaneioId?: string;
   supplier?: string;
+  status?: 'andamento' | 'concluido';
+  cheques?: Array<{ id: string; dias: number; vencimento: string; valor: number }>;
+  romaneioId?: string;
   createdAt: string;
   updatedAt: string;
 }
