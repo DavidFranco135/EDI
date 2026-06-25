@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../store/AppContext';
 import { Link } from 'react-router-dom';
-import { FileText, Truck, Trash2, ExternalLink, Search, Calendar, CheckCircle2, Clock } from 'lucide-react';
+import { FileText, Truck, Trash2, ExternalLink, Search, Calendar, CheckCircle2, Clock, DollarSign } from 'lucide-react';
+import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
 
 function fmt(n: number) {
@@ -43,8 +44,13 @@ export const Relatorios: React.FC = () => {
   }, [state.documents, typeFilter, statusFilter, search, dateFrom, dateTo]);
 
   const summary = useMemo(() => filtered.reduce(
-    (acc, d) => { acc.total += d.total; acc.m3 += d.totalM3; return acc; },
-    { total: 0, m3: 0 }
+    (acc, d) => {
+      acc.total += d.total;
+      acc.m3 += d.totalM3;
+      acc.commission += (d.commissionValue || 0);
+      return acc;
+    },
+    { total: 0, m3: 0, commission: 0 }
   ), [filtered]);
 
   const handleDelete = async (id: string) => {
@@ -125,10 +131,18 @@ export const Relatorios: React.FC = () => {
 
       {/* Summary */}
       {filtered.length > 0 && (
-        <div className="bg-green-700 text-white rounded-xl px-5 py-3 flex flex-wrap gap-6 text-sm font-bold">
-          <span>{filtered.length} documento{filtered.length !== 1 ? 's' : ''}</span>
-          <span>M³: {summary.m3.toFixed(4)}</span>
-          <span>Total: {fmt(summary.total)}</span>
+        <div className="space-y-2">
+          <div className="bg-green-700 text-white rounded-xl px-5 py-3 flex flex-wrap gap-6 text-sm font-bold">
+            <span>{filtered.length} documento{filtered.length !== 1 ? 's' : ''}</span>
+            <span>M³: {summary.m3.toFixed(4)}</span>
+            <span>Total: {fmt(summary.total)}</span>
+            {summary.commission > 0 && (
+              <span className="ml-auto text-amber-300 flex items-center gap-1">
+                <DollarSign className="w-3.5 h-3.5" />
+                Comissão: {fmt(summary.commission)}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
