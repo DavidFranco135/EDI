@@ -49,6 +49,7 @@ export interface Document {
   settlement?: number;
   paymentTerms?: string;
   notes: string;
+  motorista?: string;
   createdAt: string;
   updatedAt: string;
 }
