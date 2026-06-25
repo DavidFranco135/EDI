@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   Home,
+  Table2,
 } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -26,6 +27,7 @@ const nav = [
   { path: '/pedidos/novo', icon: FileText, label: 'Novo Pedido' },
   { path: '/romaneios/novo', icon: Truck, label: 'Novo Romaneio' },
   { path: '/relatorios', icon: BarChart3, label: 'Relatórios' },
+  { path: '/tabela-precos', icon: Table2, label: 'Tabela Preços' },
   { path: '/configuracoes', icon: Settings, label: 'Configurações' },
 ];
 
