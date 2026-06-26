@@ -259,44 +259,46 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
   const blocos = doc.blocos || [];
 
   return (
-    <div className="space-y-5 pb-32">
+    <div className="space-y-5 pb-32 max-w-full overflow-x-hidden">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Link to="/relatorios" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+      <div className="space-y-2">
+        {/* Row 1: back + title + save */}
+        <div className="flex items-center gap-2">
+          <Link to="/relatorios" className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0">
             <ArrowLeft className="w-5 h-5 text-gray-500" />
           </Link>
-          <div>
-            <h1 className="text-xl font-black text-green-800 capitalize">
-              {type === 'pedido' ? 'Pedido' : 'Romaneio'} — Nº {doc.number}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-black text-green-800 capitalize leading-tight truncate">
+              {type === 'pedido' ? 'Pedido' : 'Romaneio'} Nº {doc.number}
             </h1>
-            <p className="text-xs text-gray-400 uppercase tracking-widest">
-              {blocos.length > 1 ? `${blocos.length} lojas/blocos` : id ? 'Editando' : 'Novo documento'}
+            <p className="text-[10px] text-gray-400 uppercase tracking-widest leading-tight">
+              {id ? 'Editando' : 'Novo documento'}
             </p>
           </div>
+          <button onClick={handleSave}
+            className="flex-shrink-0 flex items-center gap-1 px-3 py-2 bg-gray-800 text-white rounded-lg text-xs font-bold hover:bg-gray-900 active:scale-95 transition-all">
+            <Save className="w-3.5 h-3.5" /> Salvar
+          </button>
         </div>
-        <div className="flex items-center gap-2">
+        {/* Row 2: action buttons — full width grid */}
+        <div className="grid grid-cols-3 gap-1.5">
           <button onClick={handleShare}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-md transition-all active:scale-95">
-            <Share2 className="w-4 h-4" /> Compartilhar
+            className="flex items-center justify-center gap-1 py-2.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 active:scale-95 transition-all">
+            <Share2 className="w-3.5 h-3.5 flex-shrink-0" /> Compartilhar
           </button>
           <button onClick={handlePrint}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-green-700 text-white rounded-xl text-sm font-bold hover:bg-green-800 shadow-md transition-all active:scale-95">
-            <Printer className="w-4 h-4" /> PDF Colorido
+            className="flex items-center justify-center gap-1 py-2.5 bg-green-700 text-white rounded-lg text-xs font-bold hover:bg-green-800 active:scale-95 transition-all">
+            <Printer className="w-3.5 h-3.5 flex-shrink-0" /> PDF Colorido
           </button>
           <button onClick={handlePrintEco}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-white border-2 border-green-700 text-green-800 rounded-xl text-sm font-bold hover:bg-green-50 shadow-md transition-all active:scale-95">
-            <Leaf className="w-4 h-4" /> PDF Econômico
-          </button>
-          <button onClick={handleSave}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-800 text-white rounded-xl text-sm font-bold hover:bg-gray-900 shadow-md transition-all active:scale-95">
-            <Save className="w-4 h-4" /> Salvar
+            className="flex items-center justify-center gap-1 py-2.5 bg-white border border-green-700 text-green-800 rounded-lg text-xs font-bold hover:bg-green-50 active:scale-95 transition-all">
+            <Leaf className="w-3.5 h-3.5 flex-shrink-0" /> Econômico
           </button>
         </div>
       </div>
 
       {/* Doc-level fields */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nº Documento</label>
           <input value={doc.number || ''} onChange={e => setDoc(p => ({ ...p, number: e.target.value }))}
@@ -367,7 +369,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
                       value={bloco.label}
                       onChange={e => updateBloco(bloco.id, { label: e.target.value })}
                       placeholder="Nome da loja / local..."
-                      className="font-black text-green-800 bg-transparent border-b-2 border-dashed border-green-300 focus:border-green-600 outline-none text-sm flex-1 min-w-0 py-0.5"
+                      className="font-black text-green-800 bg-transparent border-b-2 border-dashed border-green-300 focus:border-green-600 outline-none text-sm min-w-0 py-0.5 w-full"
                     />
                   </div>
                   {bt.m3 > 0 && (
@@ -459,7 +461,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
       {/* Live totals */}
       <div className="bg-green-700 text-white rounded-xl p-4 shadow-md">
         {blocos.length > 1 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 pb-3 border-b border-green-600">
+          <div className="grid grid-cols-2 gap-2 mb-3 pb-3 border-b border-green-600">
             {blocos.map((b, i) => {
               const bt = calcBlocoTotals(b);
               return (
@@ -472,7 +474,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
             })}
           </div>
         )}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
+        <div className="grid grid-cols-2 gap-3 text-sm mb-3">
           <div>
             <p className="text-green-300 text-xs font-bold uppercase tracking-wider">Total M³</p>
             <p className="text-xl font-black">{totals.m3.toFixed(4)}</p>
