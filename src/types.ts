@@ -62,6 +62,7 @@ export interface Document {
   motorista?: string;
   supplier?: string;
   status?: 'andamento' | 'concluido';
+  extras?: Array<{ id: string; desc: string; valor: number; op: '+' | '-' }>;
   cheques?: Array<{ id: string; dias: number; vencimento: string; valor: number }>;
   romaneioId?: string;
   createdAt: string;
