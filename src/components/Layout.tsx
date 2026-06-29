@@ -1,18 +1,9 @@
 import React, { useState } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import {
-  Users,
-  FileText,
-  Truck,
-  BarChart3,
-  Settings,
-  Cloud,
-  CloudOff,
-  RefreshCw,
-  Menu,
-  X,
-  Home,
-  Table2,
+  Users, FileText, Truck, BarChart3, Settings,
+  Cloud, CloudOff, RefreshCw, Menu, X, Home,
+  Table2, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -34,30 +25,46 @@ const nav = [
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { state, syncFromFirebase } = useApp();
   const [mobile, setMobile] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-gray-100">
+    <div className="min-h-screen flex flex-col md:flex-row bg-gray-100 overflow-x-hidden">
+
       {/* ── Sidebar Desktop ── */}
-      <aside className="hidden md:flex flex-col w-60 bg-white border-r border-gray-200 sticky top-0 h-screen no-print">
-        <div className="p-5 border-b border-gray-200">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="text-xl">🌲</span>
-            <div>
-              <p className="text-sm font-black text-green-800 leading-tight tracking-tight">EDI Madeiras</p>
-              <p className="text-[9px] text-gray-400 uppercase tracking-widest">Gestão Comercial</p>
-            </div>
-          </Link>
+      <aside
+        className={cn(
+          'hidden md:flex flex-col bg-white border-r border-gray-200 sticky top-0 h-screen transition-all duration-200 flex-shrink-0',
+          collapsed ? 'w-14' : 'w-56'
+        )}
+      >
+        {/* Logo */}
+        <div className={cn('flex items-center border-b border-gray-200 h-14 flex-shrink-0', collapsed ? 'justify-center px-0' : 'px-4 gap-2')}>
+          {!collapsed && (
+            <Link to="/" className="flex items-center gap-2 flex-1 min-w-0">
+              <span className="text-lg flex-shrink-0">🌲</span>
+              <div className="min-w-0">
+                <p className="text-sm font-black text-green-800 leading-tight truncate">EDI Madeiras</p>
+                <p className="text-[9px] text-gray-400 uppercase tracking-widest leading-tight">Gestão Comercial</p>
+              </div>
+            </Link>
+          )}
+          {collapsed && (
+            <Link to="/" className="text-lg">🌲</Link>
+          )}
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {/* Nav */}
+        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
           {nav.map(item => (
             <NavLink
               key={item.path}
               to={item.path}
               end={item.exact}
+              title={collapsed ? item.label : undefined}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
+                  'flex items-center rounded-lg transition-all duration-150 group',
+                  collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5',
                   isActive
                     ? 'bg-green-700 text-white shadow-sm'
                     : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
@@ -65,35 +72,53 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
               }
             >
               <item.icon className="w-4 h-4 flex-shrink-0" />
-              {item.label}
+              {!collapsed && <span className="text-sm font-medium truncate">{item.label}</span>}
             </NavLink>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-gray-200 space-y-2">
-          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-400">
-            <div className="flex items-center gap-1.5">
-              {state.isFirebaseReady ? (
-                <Cloud className="w-3.5 h-3.5 text-green-600" />
-              ) : (
-                <CloudOff className="w-3.5 h-3.5 text-red-400" />
-              )}
-              {state.isFirebaseReady ? 'Firebase ativo' : 'Local apenas'}
+        {/* Firebase status */}
+        {!collapsed && (
+          <div className="px-4 py-3 border-t border-gray-200 space-y-1">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              <div className="flex items-center gap-1.5">
+                {state.isFirebaseReady
+                  ? <Cloud className="w-3.5 h-3.5 text-green-600" />
+                  : <CloudOff className="w-3.5 h-3.5 text-red-400" />}
+                {state.isFirebaseReady ? 'Firebase ativo' : 'Local apenas'}
+              </div>
+              <button onClick={syncFromFirebase} disabled={state.isSyncing}
+                className="p-1 hover:text-green-700 transition-colors disabled:opacity-40">
+                <RefreshCw className={cn('w-3 h-3', state.isSyncing && 'animate-spin')} />
+              </button>
             </div>
-            <button
-              onClick={syncFromFirebase}
-              disabled={state.isSyncing}
-              className="p-1 hover:text-green-700 transition-colors disabled:opacity-40"
-            >
-              <RefreshCw className={cn('w-3 h-3', state.isSyncing && 'animate-spin')} />
+            {state.lastSync && (
+              <p className="text-[9px] text-gray-300 text-center">
+                Sync: {new Date(state.lastSync).toLocaleTimeString('pt-BR')}
+              </p>
+            )}
+          </div>
+        )}
+        {collapsed && (
+          <div className="py-3 border-t border-gray-200 flex justify-center">
+            <button onClick={syncFromFirebase} disabled={state.isSyncing}
+              title="Sincronizar"
+              className="p-2 text-gray-400 hover:text-green-700 transition-colors disabled:opacity-40">
+              <RefreshCw className={cn('w-3.5 h-3.5', state.isSyncing && 'animate-spin')} />
             </button>
           </div>
-          {state.lastSync && (
-            <p className="text-[9px] text-gray-300 text-center">
-              Sync: {new Date(state.lastSync).toLocaleTimeString('pt-BR')}
-            </p>
-          )}
-        </div>
+        )}
+
+        {/* Collapse toggle button */}
+        <button
+          onClick={() => setCollapsed(c => !c)}
+          className="absolute -right-3 top-16 w-6 h-6 bg-white border border-gray-200 rounded-full shadow-sm flex items-center justify-center text-gray-400 hover:text-green-700 hover:border-green-300 transition-all z-10"
+          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+        >
+          {collapsed
+            ? <ChevronRight className="w-3.5 h-3.5" />
+            : <ChevronLeft className="w-3.5 h-3.5" />}
+        </button>
       </aside>
 
       {/* ── Mobile header ── */}
@@ -126,9 +151,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                   className={({ isActive }) =>
                     cn(
                       'flex items-center gap-4 px-4 py-3 rounded-xl text-base font-semibold transition-all',
-                      isActive
-                        ? 'bg-green-700 text-white'
-                        : 'text-gray-600 hover:bg-gray-100'
+                      isActive ? 'bg-green-700 text-white' : 'text-gray-600 hover:bg-gray-100'
                     )
                   }
                 >
@@ -142,8 +165,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       </AnimatePresence>
 
       {/* ── Main ── */}
-      <main className="flex-1 min-w-0">
-        <div className="p-4 md:p-6 lg:p-8 pb-24 md:pb-8">{children}</div>
+      <main className="flex-1 min-w-0 overflow-x-hidden">
+        <div className="p-4 md:p-6 lg:p-8 pb-24 md:pb-8 max-w-full">
+          {children}
+        </div>
       </main>
 
       {/* Mobile bottom nav */}
