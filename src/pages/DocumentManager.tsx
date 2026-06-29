@@ -69,6 +69,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     status: 'andamento',
     paymentTerms: 'À VISTA',
     cheques: [],
+    extras: [],
     notes: type === 'romaneio'
       ? 'O FRETE SERÁ PAGO À VISTA AO TRANSPORTADOR NO ATO DA DESCARGA, DEDUZIDO DO MATERIAL. MANDAR O PAGAMENTO DA MADEIRA PELO MOTORISTA.'
       : '',
@@ -145,9 +146,14 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     );
   }, [doc.blocos]);
 
-  const commission = doc.commissionPct ? totals.subtotal * (doc.commissionPct / 100) : 0;
+  // Extras (créditos/descontos adicionais)
+  const extrasTotal = (doc.extras || []).reduce((s, e) => e.op === '+' ? s + e.valor : s - e.valor, 0);
+
+  // Comissão calculada sobre (subtotal − frete − acerto − extras negativos)
+  const baseComissao = totals.subtotal - (doc.freight || 0) - (doc.settlement || 0) - Math.abs(Math.min(0, extrasTotal));
+  const commission = doc.commissionPct ? Math.max(0, baseComissao) * (doc.commissionPct / 100) : 0;
   const total = type === 'romaneio'
-    ? totals.subtotal - (doc.freight || 0) - commission - (doc.settlement || 0)
+    ? totals.subtotal - (doc.freight || 0) - commission - (doc.settlement || 0) + extrasTotal
     : totals.subtotal;
 
   const displayDate = doc.date && !isNaN(new Date(doc.date).getTime())
@@ -258,6 +264,8 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     cheques: doc.cheques || [],
     blocos: doc.blocos || [],
     eco,
+    extras: doc.extras || [],
+    extrasTotal,
   });
 
   const handlePrint = () => {
@@ -450,6 +458,39 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
             <input type="number" value={doc.settlement || ''} onChange={e => setDoc(p => ({ ...p, settlement: parseFloat(e.target.value) || 0 }))}
               className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
           </div>
+          {/* Extras */}
+          <div className="space-y-2 md:col-span-2 lg:col-span-4">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Créditos / Descontos Extras</label>
+              <button type="button"
+                onClick={() => setDoc(p => ({ ...p, extras: [...(p.extras||[]), { id: Math.random().toString(36).slice(2,9), desc: '', valor: 0, op: '-' as const }] }))}
+                className="flex items-center gap-1 text-[10px] font-bold text-green-700 hover:text-green-900">
+                <Plus className="w-3 h-3" /> Adicionar
+              </button>
+            </div>
+            {(doc.extras || []).map(extra => (
+              <div key={extra.id} className="flex items-center gap-2">
+                <select value={extra.op}
+                  onChange={e => setDoc(p => ({ ...p, extras: (p.extras||[]).map(x => x.id===extra.id ? {...x, op: e.target.value as '+' | '-'} : x) }))}
+                  className="w-16 p-2 border border-gray-300 rounded-lg text-sm font-bold focus:border-green-600 outline-none text-center">
+                  <option value="-">− Sub</option>
+                  <option value="+">+ Add</option>
+                </select>
+                <input value={extra.desc}
+                  onChange={e => setDoc(p => ({ ...p, extras: (p.extras||[]).map(x => x.id===extra.id ? {...x, desc: e.target.value} : x) }))}
+                  placeholder="Descrição (ex: desconto qualidade)"
+                  className="flex-1 p-2 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+                <input type="number" value={extra.valor || ''}
+                  onChange={e => setDoc(p => ({ ...p, extras: (p.extras||[]).map(x => x.id===extra.id ? {...x, valor: parseFloat(e.target.value)||0} : x) }))}
+                  placeholder="R$ 0,00"
+                  className="w-32 p-2 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none text-right" />
+                <button onClick={() => setDoc(p => ({ ...p, extras: (p.extras||[]).filter(x => x.id !== extra.id) }))}
+                  className="p-2 text-gray-400 hover:text-red-500 transition-colors">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
         </>}
         <div className="space-y-1 md:col-span-2 lg:col-span-4">
           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Observações</label>
@@ -601,6 +642,12 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
             <div>
               <p className="text-green-300 text-xs font-bold uppercase tracking-wider">– Comissão</p>
               <p className="text-xl font-black text-red-300">{fmt(commission)}</p>
+            </div>
+          )}
+          {type === 'romaneio' && extrasTotal !== 0 && (
+            <div>
+              <p className="text-green-300 text-xs font-bold uppercase tracking-wider">{extrasTotal > 0 ? '+ Extras' : '– Extras'}</p>
+              <p className={`text-xl font-black ${extrasTotal > 0 ? 'text-green-200' : 'text-red-300'}`}>{fmt(Math.abs(extrasTotal))}</p>
             </div>
           )}
           <div>
