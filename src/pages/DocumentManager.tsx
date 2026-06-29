@@ -7,7 +7,7 @@ import { ChequeTable } from '../components/ChequeTable';
 import { Cheque } from '../lib/cheques';
 import { calcDerived } from '../lib/calc';
 import { buildDocHTML } from '../lib/docHTML';
-import { ArrowLeft, Save, Printer, Plus, Share2, Trash2, ChevronDown, ChevronUp, Building2, Leaf, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, Printer, Plus, Share2, Trash2, ChevronDown, ChevronUp, Building2, Leaf, Upload, CheckCircle2, AlertCircle, Users } from 'lucide-react';
 import { importFromExcel, ImportResult } from '../lib/importExcel';
 import { ImportReview } from '../components/ImportReview';
 import { format } from 'date-fns';
@@ -79,6 +79,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{type: 'ok'|'err'|'warn', text: string, warnings?: any[]} | null>(null);
   const [importReview, setImportReview] = useState<ImportResult | null>(null);
+  const [clientMatch, setClientMatch] = useState<{client: any, importResult: ImportResult, items: TimberItem[]} | null>(null);
   const importRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -183,6 +184,21 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
   };
 
   // ── Import from Excel ────────────────────────────────────────────────────
+  // Find best matching client from cadastro
+  const findClientMatch = (name: string) => {
+    if (!name) return null;
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normName = norm(name);
+    // Exact match first
+    let match = state.clients.find(c => norm(c.name) === normName);
+    if (match) return match;
+    // Partial match — name contains or is contained
+    match = state.clients.find(c =>
+      norm(c.name).includes(normName) || normName.includes(norm(c.name))
+    );
+    return match || null;
+  };
+
   const applyImport = (result: ImportResult, items: typeof result.items) => {
     setDoc(prev => {
       const blocos = [...(prev.blocos || [])];
@@ -201,6 +217,14 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
       const d = i.customM3 ?? 0;
       return s + (d || 0);
     }, 0);
+    // Check for client match in cadastro
+    if (result.clientName) {
+      const match = findClientMatch(result.clientName);
+      if (match) {
+        setClientMatch({ client: match, importResult: result, items });
+        return;
+      }
+    }
     setImportMsg({
       type: 'ok',
       text: `✓ ${items.length} itens importados${result.clientName ? ` — ${result.clientName}` : ''}`,
@@ -325,6 +349,68 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
 
   return (
     <>
+      {/* Client match confirmation */}
+      {clientMatch && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Users className="w-5 h-5 text-green-700" />
+              </div>
+              <div>
+                <h3 className="font-black text-gray-900 text-base">Cliente encontrado!</h3>
+                <p className="text-xs text-gray-500">O Excel menciona um cliente parecido com o seu cadastro</p>
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4 space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400 font-bold uppercase tracking-wider">No Excel</span>
+                <span className="font-bold text-gray-600">{clientMatch.importResult.clientName}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400 font-bold uppercase tracking-wider">No Cadastro</span>
+                <span className="font-black text-green-700">{clientMatch.client.name}</span>
+              </div>
+              {clientMatch.client.city && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-400 font-bold uppercase tracking-wider">Cidade</span>
+                  <span className="text-gray-600">{clientMatch.client.city}</span>
+                </div>
+              )}
+            </div>
+            <p className="text-sm text-gray-600 text-center">Vincular ao cliente cadastrado?</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  // Apply with client linked
+                  setDoc(prev => {
+                    const blocos = [...(prev.blocos || [])];
+                    if (blocos.length === 0) blocos.push({ id: Math.random().toString(36).slice(2,9), label: 'Principal', clientName: '', items: [] });
+                    blocos[0] = { ...blocos[0], items: clientMatch.items, clientId: clientMatch.client.id, clientName: clientMatch.client.name, clientData: { ...clientMatch.client } };
+                    return { ...prev, blocos, supplier: clientMatch.importResult.supplier || prev.supplier || '', motorista: clientMatch.importResult.motorista || prev.motorista || '', freight: clientMatch.importResult.freight ?? prev.freight };
+                  });
+                  setImportMsg({ type: 'ok', text: `✓ ${clientMatch.items.length} itens importados — ${clientMatch.client.name} vinculado` });
+                  setClientMatch(null);
+                }}
+                className="py-2.5 bg-green-700 text-white rounded-xl text-sm font-bold hover:bg-green-800 transition-all"
+              >
+                ✓ Sim, vincular
+              </button>
+              <button
+                onClick={() => {
+                  // Apply without linking
+                  setImportMsg({ type: 'ok', text: `✓ ${clientMatch.items.length} itens importados` });
+                  setClientMatch(null);
+                }}
+                className="py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all"
+              >
+                Não, manual
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {importReview && (
         <ImportReview
           warnings={importReview.warnings}
