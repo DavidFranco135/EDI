@@ -2,16 +2,28 @@
 declare const XLSX: any;
 import { TimberItem } from '../types';
 
+export interface ValidationWarning {
+  field: string;
+  expected: number;
+  calculated: number;
+  diff: number;
+  message: string;
+}
+
 export interface ImportResult {
   items: TimberItem[];
   clientName?: string;
   motorista?: string;
   freight?: number;
   commissionValue?: number;
+  commissionPct?: number;
   totalM3?: number;
+  totalMadeira?: number;   // subtotal madeira from excel
+  totalAPagar?: number;    // total a pagar from excel
   supplier?: string;
   notes?: string;
   rawRows: any[][];
+  warnings: ValidationWarning[];
 }
 
 function round(n: number, dec = 4) {
@@ -76,6 +88,7 @@ export async function importFromExcel(file: File): Promise<ImportResult> {
   const result: ImportResult = {
     items: [],
     rawRows: raw,
+    warnings: [],
   };
 
   // ── 1. Extract header fields (client, motorista, supplier, etc.) ──────────
@@ -104,7 +117,7 @@ export async function importFromExcel(file: File): Promise<ImportResult> {
     }
 
     // Frete
-    if (joined.includes('frete')) {
+    if (joined.includes('frete') && !joined.includes('subtotal')) {
       const nums = row.map(asNum).filter(n => n !== null) as number[];
       if (nums.length) result.freight = Math.abs(nums[0]);
     }
@@ -112,7 +125,20 @@ export async function importFromExcel(file: File): Promise<ImportResult> {
     // Comissão
     if (joined.includes('comiss')) {
       const nums = row.map(asNum).filter(n => n !== null) as number[];
-      if (nums.length) result.commissionValue = nums[0];
+      if (nums.length) result.commissionValue = Math.abs(nums[0]);
+    }
+
+    // Total madeira / subtotal
+    if (joined.includes('subtotal') || (joined.includes('total') && joined.includes('madeir'))) {
+      const nums = row.map(asNum).filter(n => n !== null) as number[];
+      if (nums.length) result.totalMadeira = nums[nums.length - 1];
+    }
+
+    // Total a receber / total a pagar
+    if (joined.includes('totalreceber') || joined.includes('totalpagar') ||
+        (joined.includes('total') && joined.includes('receber'))) {
+      const nums = row.map(asNum).filter(n => n !== null) as number[];
+      if (nums.length) result.totalAPagar = nums[nums.length - 1];
     }
   }
 
@@ -208,6 +234,50 @@ export async function importFromExcel(file: File): Promise<ImportResult> {
   }
 
   if (totalM3acc > 0) result.totalM3 = round(totalM3acc);
+
+  // ── Validation: compare Excel values vs our calculations ─────────────────
+  const calcSubtotal = result.items.reduce((s, item) => {
+    const m3 = item.customM3 ?? 0;
+    return s + m3 * item.pricePerM3;
+  }, 0);
+
+  const calcM3 = result.items.reduce((s, item) => s + (item.customM3 ?? 0), 0);
+
+  // Check M³ total
+  if (result.totalM3 && Math.abs(calcM3 - result.totalM3) > 0.01) {
+    result.warnings.push({
+      field: 'Total M³',
+      expected: result.totalM3,
+      calculated: round(calcM3),
+      diff: round(Math.abs(calcM3 - result.totalM3)),
+      message: `M³ total da serraria (${result.totalM3.toFixed(4)}) difere do calculado (${round(calcM3).toFixed(4)}). Diferença: ${round(Math.abs(calcM3 - result.totalM3)).toFixed(4)} m³`,
+    });
+  }
+
+  // Check subtotal madeira
+  if (result.totalMadeira && Math.abs(calcSubtotal - result.totalMadeira) > 0.50) {
+    result.warnings.push({
+      field: 'Subtotal Madeira',
+      expected: result.totalMadeira,
+      calculated: round(calcSubtotal, 2),
+      diff: round(Math.abs(calcSubtotal - result.totalMadeira), 2),
+      message: `Subtotal da serraria (R$ ${result.totalMadeira.toFixed(2)}) difere do calculado (R$ ${calcSubtotal.toFixed(2)}). Diferença: R$ ${Math.abs(calcSubtotal - result.totalMadeira).toFixed(2)}`,
+    });
+  }
+
+  // Check total a pagar (subtotal - frete - comissao)
+  if (result.totalAPagar) {
+    const calcTotal = calcSubtotal - (result.freight || 0) - (result.commissionValue || 0);
+    if (Math.abs(calcTotal - result.totalAPagar) > 1) {
+      result.warnings.push({
+        field: 'Total a Pagar',
+        expected: result.totalAPagar,
+        calculated: round(calcTotal, 2),
+        diff: round(Math.abs(calcTotal - result.totalAPagar), 2),
+        message: `Total a receber da serraria (R$ ${result.totalAPagar.toFixed(2)}) difere do recalculado (R$ ${calcTotal.toFixed(2)}). Verifique frete e comissão.`,
+      });
+    }
+  }
 
   return result;
 }
