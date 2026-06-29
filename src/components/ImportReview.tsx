@@ -20,7 +20,7 @@ function fmt(n: number) {
 }
 
 function fmtM3(n: number) {
-  return n.toFixed(4) + ' m³';
+  return n.toFixed(3) + ' m³';
 }
 
 export const ImportReview: React.FC<Props> = ({
@@ -184,11 +184,11 @@ export const ImportReview: React.FC<Props> = ({
                           {item.espessura}×{item.largura}cm / {comp}m
                         </td>
                         <td className="px-3 py-2 text-center text-gray-600">{qty}</td>
-                        <td className="px-3 py-2 text-center font-mono text-gray-700">{serrM3i.toFixed(4)}</td>
-                        <td className="px-3 py-2 text-center font-mono text-green-700 font-bold">{calcM3i.toFixed(4)}</td>
+                        <td className="px-3 py-2 text-center font-mono text-gray-700">{serrM3i.toFixed(3)}</td>
+                        <td className="px-3 py-2 text-center font-mono text-green-700 font-bold">{calcM3i.toFixed(3)}</td>
                         <td className="px-3 py-2 text-center">
                           {hasDiff
-                            ? <span className="text-amber-600 font-bold">{diff.toFixed(4)}</span>
+                            ? <span className="text-amber-600 font-bold">{diff.toFixed(3)}</span>
                             : <span className="text-green-500">✓</span>}
                         </td>
                       </tr>
