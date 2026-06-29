@@ -7,7 +7,8 @@ import { ChequeTable } from '../components/ChequeTable';
 import { Cheque } from '../lib/cheques';
 import { calcDerived } from '../lib/calc';
 import { buildDocHTML } from '../lib/docHTML';
-import { ArrowLeft, Save, Printer, Plus, Share2, Trash2, ChevronDown, ChevronUp, Building2, Leaf } from 'lucide-react';
+import { ArrowLeft, Save, Printer, Plus, Share2, Trash2, ChevronDown, ChevronUp, Building2, Leaf, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
+import { importFromExcel } from '../lib/importExcel';
 import { format } from 'date-fns';
 
 function fmt(n: number) {
@@ -73,6 +74,9 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
   });
 
   const [collapsedBlocos, setCollapsedBlocos] = useState<Record<string, boolean>>({});
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<{type: 'ok'|'err', text: string} | null>(null);
+  const importRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (id) {
@@ -168,6 +172,42 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
       clientName: c?.name || '',
       clientData: c ? { ...c } : undefined,
     });
+  };
+
+  // ── Import from Excel ────────────────────────────────────────────────────
+  const handleImportClick = () => importRef.current?.click();
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const result = await importFromExcel(file);
+
+      // Fill first bloco with items
+      setDoc(prev => {
+        const blocos = [...(prev.blocos || [])];
+        if (blocos.length === 0) blocos.push({ id: Math.random().toString(36).slice(2,9), label: 'Principal', clientName: '', items: [] });
+        blocos[0] = { ...blocos[0], items: result.items };
+        return {
+          ...prev,
+          blocos,
+          supplier: result.supplier || prev.supplier || '',
+          motorista: result.motorista || prev.motorista || '',
+          freight: result.freight ?? prev.freight,
+          clientName: result.clientName || prev.clientName || '',
+        };
+      });
+
+      setImportMsg({ type: 'ok', text: `✓ ${result.items.length} itens importados${result.clientName ? ` — ${result.clientName}` : ''}${result.totalM3 ? ` — ${result.totalM3.toFixed(4)} m³` : ''}` });
+    } catch (err: any) {
+      setImportMsg({ type: 'err', text: err.message || 'Erro ao importar arquivo.' });
+    } finally {
+      setImporting(false);
+    }
   };
 
   // ── Save ──────────────────────────────────────────────────────────────────
@@ -280,8 +320,12 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
             <Save className="w-3.5 h-3.5" /> Salvar
           </button>
         </div>
-        {/* Row 2: action buttons — full width grid */}
-        <div className="grid grid-cols-3 gap-1.5">
+        {/* Row 2: action buttons */}
+        <div className="grid grid-cols-2 gap-1.5">
+          <button onClick={handleImportClick} disabled={importing}
+            className="flex items-center justify-center gap-1 py-2.5 bg-amber-500 text-white rounded-lg text-xs font-bold hover:bg-amber-600 active:scale-95 transition-all disabled:opacity-60">
+            <Upload className="w-3.5 h-3.5 flex-shrink-0" /> {importing ? 'Importando...' : 'Importar Excel'}
+          </button>
           <button onClick={handleShare}
             className="flex items-center justify-center gap-1 py-2.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 active:scale-95 transition-all">
             <Share2 className="w-3.5 h-3.5 flex-shrink-0" /> Compartilhar
@@ -295,6 +339,16 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
             <Leaf className="w-3.5 h-3.5 flex-shrink-0" /> Econômico
           </button>
         </div>
+        {/* Hidden file input */}
+        <input ref={importRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
+        {/* Import feedback */}
+        {importMsg && (
+          <div className={['flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold',
+            importMsg.type === 'ok' ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-700'].join(' ')}>
+            {importMsg.type === 'ok' ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+            {importMsg.text}
+          </div>
+        )}
       </div>
 
       {/* Doc-level fields */}
