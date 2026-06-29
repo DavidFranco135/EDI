@@ -31,11 +31,13 @@ interface DocHTMLParams {
   settings: Record<string, any>;
   cheques?: Cheque[];
   blocos?: Bloco[];
-  eco?: boolean;  // economic print mode — no color backgrounds
+  eco?: boolean;
+  extras?: Array<{ id: string; desc: string; valor: number; op: '+' | '-' }>;
+  extrasTotal?: number;
 }
 
 export function buildDocHTML(p: DocHTMLParams): string {
-  const { doc, type, totals, commission, total, displayDate, client, settings: s, cheques = [], blocos = [], eco = false } = p;
+  const { doc, type, totals, commission, total, displayDate, client, settings: s, cheques = [], blocos = [], eco = false, extras = [], extrasTotal = 0 } = p;
 
   // Eco overrides — white backgrounds, only text/borders in color
   const H_BG   = eco ? '#fff' : C_DARK;      // header bg
@@ -150,6 +152,15 @@ export function buildDocHTML(p: DocHTMLParams): string {
     s + b.items.reduce((ss: number, it: TimberItem) => ss + calcDerived(it).qtyTotal, 0), 0);
 
   // Conditional rows
+  // Extras rows
+  const extrasRows = extras.filter(e => e.valor > 0).map(e =>
+    '<tr style="background:#f8f8ff"><td style="' + SUMTD + '">' +
+    (e.op === '+' ? '+ ' : '– ') + (e.desc || 'Extra') +
+    '</td><td style="' + SUMTD + ';font-weight:bold;text-align:right;color:' + (e.op === '+' ? '#1B4332' : '#b91c1c') + '">' +
+    (e.op === '-' ? '– ' : '+ ') + fmt(e.valor) +
+    '</td></tr>'
+  ).join('');
+
   const freteRow = (type === 'romaneio' && (doc.freight || 0) > 0)
     ? '<tr style="background:#fff8f0"><td style="' + SUMTD + '">– Frete</td><td style="' + SUMTD + ';font-weight:bold;text-align:right;color:#b45309">' + fmt(doc.freight || 0) + '</td></tr>'
     : '';
@@ -271,7 +282,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
     '<table style="border:2px solid ' + C_DARK + ';border-radius:6px;overflow:hidden;font-size:10px">' +
     '<tr style="background:' + SUM_BG + '"><td style="' + SUMTD + '"><strong style="color:' + C_DARK + '">Total em M³</strong></td><td style="' + SUMTD + ';font-weight:bold;color:' + C_DARK + ';text-align:right;font-size:13px">' + totals.m3.toFixed(4) + ' m³</td></tr>' +
     '<tr><td style="' + SUMTD + '">Subtotal Madeira</td><td style="' + SUMTD + ';font-weight:bold;text-align:right">' + fmt(totals.subtotal) + '</td></tr>' +
-    freteRow + commRow + settlRow +
+    freteRow + commRow + settlRow + extrasRows +
     '<tr style="background:' + TOT_BG + ';border-top:3px solid ' + C_GOLD + '"><td style="' + SUMTD + ';color:' + TOT_T + ';font-weight:900;font-size:13px;letter-spacing:0.5px">TOTAL A PAGAR</td><td style="border:1px solid ' + C_GOLD + ';padding:7px 14px;font-size:17px;font-weight:900;text-align:right;background:' + TPAY_BG + ';color:' + TPAY_T + '">' + fmt(total) + '</td></tr>' +
     '</table></td></tr></table>' +
 
