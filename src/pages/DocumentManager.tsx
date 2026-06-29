@@ -308,41 +308,8 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
   };
 
   const handleShare = async () => {
-    const title = `${type.toUpperCase()} Nº ${doc.number} — ${doc.blocos?.[0]?.clientName || doc.clientName || ''}`;
-    const html = getHTML();
-    const filename = `${type}-${doc.number}.html`;
-
-    // Try Web Share API with file (works on Android Chrome 86+, iOS 15+)
-    if (navigator.share) {
-      try {
-        const blob = new Blob([html], { type: 'text/html' });
-        const file = new File([blob], filename, { type: 'text/html' });
-        const shareData: ShareData = { title, files: [file] };
-
-        if ((navigator as any).canShare?.(shareData)) {
-          await navigator.share(shareData);
-          return;
-        }
-
-        // Fallback: share as URL (data URI)
-        const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
-        await navigator.share({ title, url: dataUrl });
-        return;
-      } catch (err: any) {
-        // User cancelled — don't show error
-        if (err?.name === 'AbortError') return;
-      }
-    }
-
-    // Desktop fallback: open print window
-    const win = window.open('', '_blank');
-    if (!win) {
-      alert('Pop-up bloqueado. Permita pop-ups para este site e tente novamente.');
-      return;
-    }
-    win.document.write(html);
-    win.document.close();
-    setTimeout(() => { try { win.print(); } catch {} }, 600);
+    // Open document in new tab — user saves as PDF then shares
+    handlePrint();
   };
 
   const s = state.settings;
@@ -742,17 +709,13 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
             <p className="text-2xl font-black text-yellow-300">{fmt(total)}</p>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <button onClick={handleShare}
-            className="py-3 bg-blue-600 text-white rounded-lg font-black text-sm hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2">
-            <Share2 className="w-4 h-4" /> Compartilhar
-          </button>
+        <div className="grid grid-cols-2 gap-2">
           <button onClick={handlePrint}
-            className="py-2.5 bg-white text-green-800 rounded-lg font-black text-sm hover:bg-green-50 active:scale-95 transition-all flex items-center justify-center gap-1.5">
-            <Printer className="w-4 h-4" /> PDF Colorido
+            className="py-3 bg-white text-green-800 rounded-lg font-black text-sm hover:bg-green-50 active:scale-95 transition-all flex items-center justify-center gap-2">
+            <Printer className="w-4 h-4" /> PDF / Compartilhar
           </button>
           <button onClick={handlePrintEco}
-            className="py-2.5 bg-green-600 text-white rounded-lg font-black text-sm hover:bg-green-500 active:scale-95 transition-all flex items-center justify-center gap-1.5">
+            className="py-3 bg-green-600 text-white rounded-lg font-black text-sm hover:bg-green-500 active:scale-95 transition-all flex items-center justify-center gap-2">
             <Leaf className="w-4 h-4" /> PDF Econômico
           </button>
         </div>
