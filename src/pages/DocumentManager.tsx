@@ -712,7 +712,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
         <div className="grid grid-cols-2 gap-3 text-sm mb-3">
           <div>
             <p className="text-green-300 text-xs font-bold uppercase tracking-wider">Total M³</p>
-            <p className="text-xl font-black">{totals.m3.toFixed(4)}</p>
+            <p className="text-xl font-black">{totals.m3.toFixed(3)}</p>
           </div>
           <div>
             <p className="text-green-300 text-xs font-bold uppercase tracking-wider">Subtotal</p>
