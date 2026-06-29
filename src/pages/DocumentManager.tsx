@@ -147,14 +147,15 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     );
   }, [doc.blocos]);
 
-  // Extras (créditos/descontos adicionais)
+  // Extras (créditos/descontos — aplicados DEPOIS da comissão)
   const extrasTotal = (doc.extras || []).reduce((s, e) => e.op === '+' ? s + e.valor : s - e.valor, 0);
 
-  // Comissão calculada sobre (subtotal − frete − acerto − extras negativos)
-  const baseComissao = totals.subtotal - (doc.freight || 0) - (doc.settlement || 0) - Math.abs(Math.min(0, extrasTotal));
+  // 1. Base da comissão = subtotal − frete − acerto
+  const baseComissao = totals.subtotal - (doc.freight || 0) - (doc.settlement || 0);
   const commission = doc.commissionPct ? Math.max(0, baseComissao) * (doc.commissionPct / 100) : 0;
+  // 2. Total = subtotal − frete − acerto − comissão ± extras
   const total = type === 'romaneio'
-    ? totals.subtotal - (doc.freight || 0) - commission - (doc.settlement || 0) + extrasTotal
+    ? totals.subtotal - (doc.freight || 0) - (doc.settlement || 0) - commission + extrasTotal
     : totals.subtotal;
 
   const displayDate = doc.date && !isNaN(new Date(doc.date).getTime())
