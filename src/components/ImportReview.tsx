@@ -32,12 +32,14 @@ export const ImportReview: React.FC<Props> = ({
   // Serraria values (customM3 set from Excel)
   const serrM3   = items.reduce((s, i) => s + (i.customM3 ?? 0), 0);
   const serrSub  = items.reduce((s, i) => s + (i.customM3 ?? 0) * i.pricePerM3, 0);
+  // Comissão calculada sobre (subtotal − frete)
   const serrTot  = serrSub - freight - commissionValue;
 
   // Calculated values (auto from dimensions)
   const calcItems = items.map(i => ({ ...i, customM3: null }));
   const calcM3   = calcItems.reduce((s, i) => s + calcDerived(i).finalM3, 0);
   const calcSub  = calcItems.reduce((s, i) => s + calcDerived(i).value, 0);
+  // Comissão sobre (subtotal − frete)
   const calcTot  = calcSub - freight - commissionValue;
 
   const diffM3  = Math.abs(serrM3 - calcM3);
