@@ -171,8 +171,22 @@ export function buildDocHTML(p: DocHTMLParams): string {
     ? '<tr style="background:#fff0f0"><td style="' + SUMTD + '">– Acerto escritório</td><td style="' + SUMTD + ';font-weight:bold;text-align:right;color:#b91c1c">' + fmt(doc.settlement || 0) + '</td></tr>'
     : '';
 
+  // Format notes: preserve line breaks, support *bold*
+  const formatNotes = (text: string): string => {
+    return text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .map(line => {
+        // Replace *text* with bold
+        const bolded = line.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+        return '<div style="margin-bottom:2px">' + bolded + '</div>';
+      })
+      .join('');
+  };
+
   const notesBar = doc.notes
-    ? '<div style="background:' + C_GOLDBG + ';border-left:4px solid ' + C_GOLD + ';padding:6px 12px;font-size:9px;font-weight:bold;color:#7a5c00;margin-bottom:6px">' + doc.notes + '</div>'
+    ? '<div style="background:' + C_GOLDBG + ';border-left:4px solid ' + C_GOLD + ';padding:8px 12px;font-size:9px;font-weight:bold;color:#7a5c00;margin-bottom:6px;line-height:1.6">' + formatNotes(doc.notes) + '</div>'
     : '';
 
   const supplierRow = doc.supplier
