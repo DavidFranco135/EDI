@@ -134,7 +134,7 @@ export const Dashboard: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-green-700 text-sm">{fmt(doc.total)}</p>
-                    <p className="text-[10px] text-gray-400">{doc.totalM3.toFixed(4)} m³</p>
+                    <p className="text-[10px] text-gray-400">{doc.totalM3.toFixed(3)} m³</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 px-4 py-2 bg-amber-50/50">
