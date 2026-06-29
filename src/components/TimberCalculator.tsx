@@ -95,8 +95,8 @@ export const TimberCalculator: React.FC<Props> = ({ items, onChange, readOnly })
     n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
-    <div className="space-y-3">
-      <div className="overflow-x-auto rounded border border-gray-300 bg-white shadow-sm">
+    <div className="space-y-3 max-w-full">
+      <div className="overflow-x-auto rounded border border-gray-300 bg-white shadow-sm" style={{ WebkitOverflowScrolling: "touch" }}>
         <table className="w-full border-collapse text-xs" style={{ minWidth: 860 }}>
           <thead>
             <tr className="bg-gray-100 border-b border-gray-300">
@@ -252,7 +252,7 @@ export const TimberCalculator: React.FC<Props> = ({ items, onChange, readOnly })
                       <input
                         type="number" step="0.0001"
                         value={item.customM3 !== null && item.customM3 !== undefined ? item.customM3 : ''}
-                        placeholder={d.m3Auto.toFixed(4)}
+                        placeholder={d.m3Auto.toFixed(3)}
                         onChange={e => update(item.id, 'customM3', e.target.value === '' ? null : parseFloat(e.target.value))}
                         disabled={readOnly}
                         className={cn(NUM, 'font-bold text-green-700 placeholder:opacity-40')}
@@ -296,7 +296,7 @@ export const TimberCalculator: React.FC<Props> = ({ items, onChange, readOnly })
               </td>
               <td colSpan={3} className="border border-gray-600" />
               <td className="border border-gray-600 px-2 py-2 text-center text-green-300 tabular-nums font-bold">
-                {totals.m3.toFixed(4)}
+                {totals.m3.toFixed(3)}
               </td>
               <td className="border border-gray-600 px-2 py-2 text-right tabular-nums text-yellow-300 font-bold">
                 {totals.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
