@@ -246,6 +246,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
     '</td></tr></table></div>' +
 
     notesBar +
+    '<div style="margin-top:24px"></div>' +
     // Tables (one per bloco)
     tablesSections;
 
@@ -274,7 +275,8 @@ export function buildDocHTML(p: DocHTMLParams): string {
 
     // Totals + obs + cheques
   html +=
-    '<table style="margin-top:8px;margin-bottom:8px"><tr>' +
+    '<div style="margin-top:28px"></div>' +
+    '<table style="margin-top:0;margin-bottom:8px"><tr>' +
     (chequesHTML ? ('<td style="width:55%;vertical-align:top;padding-right:12px">' +
       '<div style="font-size:8px;font-weight:bold;text-transform:uppercase;color:#555;letter-spacing:1px;margin-bottom:4px">Cheques / Parcelas</div>' +
       chequesHTML + '</td>') : '') +
