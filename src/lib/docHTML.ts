@@ -80,7 +80,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
         '<td style="' + TD + '">' + d.linearMeters.toFixed(3) + '</td>' +
         '<td style="' + TD + ';font-weight:bold">' + (item.pricePerM3 ? fmt(item.pricePerM3) : '') + '</td>' +
         '<td style="' + TD + ';font-weight:bold;color:#444">' + (d.precoUnitario > 0 ? d.precoUnitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—') + '</td>' +
-        '<td style="border:1px solid #c8e6d8;padding:3px 6px;text-align:center;font-size:10px;font-weight:bold;color:' + C_DARK + ';background:' + M3_BG + '">' + d.finalM3.toFixed(4) + '</td>' +
+        '<td style="border:1px solid #c8e6d8;padding:3px 6px;text-align:center;font-size:10px;font-weight:bold;color:' + C_DARK + ';background:' + M3_BG + '">' + d.finalM3.toFixed(3) + '</td>' +
         '<td style="border:1px solid #e8d090;padding:3px 6px;text-align:right;font-size:10px;color:' + C_DARK + ';font-weight:bold;background:' + VAL_BG + '">' + fmt(d.value) + '</td>' +
         '</tr>'
       );
@@ -129,7 +129,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
       '<td colspan="6" style="' + TD + '"></td>' +
       '<td style="' + TD + ';text-align:center;font-size:11px">' + qtyT + '</td>' +
       '<td colspan="3" style="' + TD + '"></td>' +
-      '<td style="border:1px solid rgba(255,255,255,0.2);padding:3px 6px;text-align:right;font-size:9px;color:' + (eco ? '#555' : 'rgba(255,255,255,0.7)') + '">Total m³: <span style="color:' + TOT_T + ';font-weight:900;font-size:12px">' + m3T.toFixed(4) + '</span></td>' +
+      '<td style="border:1px solid rgba(255,255,255,0.2);padding:3px 6px;text-align:right;font-size:9px;color:' + (eco ? '#555' : 'rgba(255,255,255,0.7)') + '">Total m³: <span style="color:' + TOT_T + ';font-weight:900;font-size:12px">' + m3T.toFixed(3) + '</span></td>' +
       '<td style="border:1px solid ' + C_GOLD + ';padding:3px 6px;text-align:right;font-size:12px;font-weight:900;background:' + C_GOLD + ';color:' + TPAY_BG + ';color:' + TPAY_T + ';border:1px solid ' + C_GOLD + '">' + fmt(valT) + '</td>' +
       '</tr></tfoot></table>'
     );
@@ -282,7 +282,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
       chequesHTML + '</td>') : '') +
     '<td style="vertical-align:top;' + (chequesHTML ? 'width:45%' : 'width:100%') + '">' +
     '<table style="border:2px solid ' + C_DARK + ';border-radius:6px;overflow:hidden;font-size:10px">' +
-    '<tr style="background:' + SUM_BG + '"><td style="' + SUMTD + '"><strong style="color:' + C_DARK + '">Total em M³</strong></td><td style="' + SUMTD + ';font-weight:bold;color:' + C_DARK + ';text-align:right;font-size:13px">' + totals.m3.toFixed(4) + ' m³</td></tr>' +
+    '<tr style="background:' + SUM_BG + '"><td style="' + SUMTD + '"><strong style="color:' + C_DARK + '">Total em M³</strong></td><td style="' + SUMTD + ';font-weight:bold;color:' + C_DARK + ';text-align:right;font-size:13px">' + totals.m3.toFixed(3) + ' m³</td></tr>' +
     '<tr><td style="' + SUMTD + '">Subtotal Madeira</td><td style="' + SUMTD + ';font-weight:bold;text-align:right">' + fmt(totals.subtotal) + '</td></tr>' +
     freteRow + commRow + settlRow + extrasRows +
     '<tr style="background:' + TOT_BG + ';border-top:3px solid ' + C_GOLD + '"><td style="' + SUMTD + ';color:' + TOT_T + ';font-weight:900;font-size:13px;letter-spacing:0.5px">TOTAL A PAGAR</td><td style="border:1px solid ' + C_GOLD + ';padding:7px 14px;font-size:17px;font-weight:900;text-align:right;background:' + TPAY_BG + ';color:' + TPAY_T + '">' + fmt(total) + '</td></tr>' +
