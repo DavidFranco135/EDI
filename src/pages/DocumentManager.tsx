@@ -8,7 +8,8 @@ import { Cheque } from '../lib/cheques';
 import { calcDerived } from '../lib/calc';
 import { buildDocHTML } from '../lib/docHTML';
 import { ArrowLeft, Save, Printer, Plus, Share2, Trash2, ChevronDown, ChevronUp, Building2, Leaf, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
-import { importFromExcel } from '../lib/importExcel';
+import { importFromExcel, ImportResult } from '../lib/importExcel';
+import { ImportReview } from '../components/ImportReview';
 import { format } from 'date-fns';
 
 function fmt(n: number) {
@@ -75,7 +76,8 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
 
   const [collapsedBlocos, setCollapsedBlocos] = useState<Record<string, boolean>>({});
   const [importing, setImporting] = useState(false);
-  const [importMsg, setImportMsg] = useState<{type: 'ok'|'err', text: string} | null>(null);
+  const [importMsg, setImportMsg] = useState<{type: 'ok'|'err'|'warn', text: string, warnings?: any[]} | null>(null);
+  const [importReview, setImportReview] = useState<ImportResult | null>(null);
   const importRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -175,6 +177,30 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
   };
 
   // ── Import from Excel ────────────────────────────────────────────────────
+  const applyImport = (result: ImportResult, items: typeof result.items) => {
+    setDoc(prev => {
+      const blocos = [...(prev.blocos || [])];
+      if (blocos.length === 0) blocos.push({ id: Math.random().toString(36).slice(2,9), label: 'Principal', clientName: '', items: [] });
+      blocos[0] = { ...blocos[0], items };
+      return {
+        ...prev,
+        blocos,
+        supplier: result.supplier || prev.supplier || '',
+        motorista: result.motorista || prev.motorista || '',
+        freight: result.freight ?? prev.freight,
+        clientName: result.clientName || prev.clientName || '',
+      };
+    });
+    const calcM3 = items.reduce((s, i) => {
+      const d = i.customM3 ?? 0;
+      return s + (d || 0);
+    }, 0);
+    setImportMsg({
+      type: 'ok',
+      text: `✓ ${items.length} itens importados${result.clientName ? ` — ${result.clientName}` : ''}`,
+    });
+  };
+
   const handleImportClick = () => importRef.current?.click();
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -187,24 +213,15 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     try {
       const result = await importFromExcel(file);
 
-      // Fill first bloco with items
-      setDoc(prev => {
-        const blocos = [...(prev.blocos || [])];
-        if (blocos.length === 0) blocos.push({ id: Math.random().toString(36).slice(2,9), label: 'Principal', clientName: '', items: [] });
-        blocos[0] = { ...blocos[0], items: result.items };
-        return {
-          ...prev,
-          blocos,
-          supplier: result.supplier || prev.supplier || '',
-          motorista: result.motorista || prev.motorista || '',
-          freight: result.freight ?? prev.freight,
-          clientName: result.clientName || prev.clientName || '',
-        };
-      });
-
-      setImportMsg({ type: 'ok', text: `✓ ${result.items.length} itens importados${result.clientName ? ` — ${result.clientName}` : ''}${result.totalM3 ? ` — ${result.totalM3.toFixed(4)} m³` : ''}` });
+      if (result.warnings && result.warnings.length > 0) {
+        // Show review modal for user to choose
+        setImportReview(result);
+      } else {
+        // No warnings — apply directly
+        applyImport(result, result.items);
+      }
     } catch (err: any) {
-      setImportMsg({ type: 'err', text: err.message || 'Erro ao importar arquivo.' });
+      setImportMsg({ type: 'err', text: (err as any).message || 'Erro ao importar arquivo.' });
     } finally {
       setImporting(false);
     }
@@ -299,6 +316,22 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
   const blocos = doc.blocos || [];
 
   return (
+    <>
+      {importReview && (
+        <ImportReview
+          warnings={importReview.warnings}
+          items={importReview.items}
+          freight={importReview.freight}
+          commissionValue={importReview.commissionValue}
+          totalMadeira={importReview.totalMadeira}
+          totalAPagar={importReview.totalAPagar}
+          onConfirm={(chosenItems) => {
+            applyImport(importReview, chosenItems);
+            setImportReview(null);
+          }}
+          onCancel={() => setImportReview(null)}
+        />
+      )}
     <div className="space-y-5 pb-32 max-w-full overflow-x-hidden">
       {/* Toolbar */}
       <div className="space-y-2">
@@ -343,10 +376,31 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
         <input ref={importRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
         {/* Import feedback */}
         {importMsg && (
-          <div className={['flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold',
-            importMsg.type === 'ok' ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-700'].join(' ')}>
-            {importMsg.type === 'ok' ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
-            {importMsg.text}
+          <div className="space-y-1.5">
+            <div className={['flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold',
+              importMsg.type === 'ok' ? 'bg-green-50 border border-green-200 text-green-800'
+              : importMsg.type === 'warn' ? 'bg-amber-50 border border-amber-300 text-amber-800'
+              : 'bg-red-50 border border-red-200 text-red-700'].join(' ')}>
+              {importMsg.type === 'ok' ? <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-green-600" />
+               : importMsg.type === 'warn' ? <AlertCircle className="w-4 h-4 flex-shrink-0 text-amber-500" />
+               : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+              <span>{importMsg.text}</span>
+              {importMsg.warnings && importMsg.warnings.length > 0 && (
+                <span className="ml-1 text-amber-700 font-black">⚠ {importMsg.warnings.length} aviso{importMsg.warnings.length > 1 ? 's' : ''}</span>
+              )}
+            </div>
+            {importMsg.warnings && importMsg.warnings.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1.5">
+                <p className="text-[10px] font-black text-amber-700 uppercase tracking-wider">⚠ Divergências encontradas no arquivo da serraria:</p>
+                {importMsg.warnings.map((w: any, i: number) => (
+                  <div key={i} className="flex items-start gap-2 text-[11px] text-amber-800">
+                    <span className="font-bold flex-shrink-0 text-amber-600">[{w.field}]</span>
+                    <span>{w.message}</span>
+                  </div>
+                ))}
+                <p className="text-[10px] text-amber-600 italic pt-1">Revise os valores antes de salvar.</p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -570,5 +624,6 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
         </div>
       </div>
     </div>
+    </>
   );
 };
