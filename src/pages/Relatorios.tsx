@@ -173,7 +173,7 @@ export const Relatorios: React.FC = () => {
                   {doc.clientName}
                 </p>
                 <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
-                  <span>{doc.totalM3.toFixed(4)} m³</span>
+                  <span>{doc.totalM3.toFixed(3)} m³</span>
                   <span className="font-bold text-green-700">{fmt(doc.total)}</span>
                 </div>
               </div>
