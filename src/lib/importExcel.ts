@@ -1,283 +1,256 @@
-// xlsx loaded dynamically from CDN
-declare const XLSX: any;
+import React, { useState } from 'react';
+import { AlertCircle, CheckCircle2, X, ChevronRight } from 'lucide-react';
 import { TimberItem } from '../types';
+import { calcDerived } from '../lib/calc';
+import { ValidationWarning } from '../lib/importExcel';
 
-export interface ValidationWarning {
-  field: string;
-  expected: number;
-  calculated: number;
-  diff: number;
-  message: string;
-}
-
-export interface ImportResult {
-  items: TimberItem[];
-  clientName?: string;
-  motorista?: string;
+interface Props {
+  warnings: ValidationWarning[];
+  items: TimberItem[];           // items with serraria M³ (customM3)
+  onConfirm: (items: TimberItem[], useCalc: boolean) => void;
+  onCancel: () => void;
   freight?: number;
   commissionValue?: number;
-  commissionPct?: number;
-  totalM3?: number;
-  totalMadeira?: number;   // subtotal madeira from excel
-  totalAPagar?: number;    // total a pagar from excel
-  supplier?: string;
-  notes?: string;
-  rawRows: any[][];
-  warnings: ValidationWarning[];
+  totalMadeira?: number;
+  totalAPagar?: number;
 }
 
-function round(n: number, dec = 4) {
-  return Math.round(n * Math.pow(10, dec)) / Math.pow(10, dec);
+function fmt(n: number) {
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function newItem(): TimberItem {
-  return {
-    id: Math.random().toString(36).slice(2, 9),
-    espessura: 0,
-    largura: 0,
-    c3: 0, c4: 0, c5: 0, c6: 0,
-    pricePerM3: 0,
-    customM3: null,
-    calcMode: 'qty_to_m3',
-  };
+function fmtM3(n: number) {
+  return n.toFixed(4) + ' m³';
 }
 
-/**
- * Try to parse a value as a positive number
- */
-function asNum(v: any): number | null {
-  if (v === null || v === undefined || v === '') return null;
-  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'));
-  return isFinite(n) && n > 0 ? n : null;
-}
+export const ImportReview: React.FC<Props> = ({
+  warnings, items, onConfirm, onCancel,
+  freight = 0, commissionValue = 0, totalMadeira, totalAPagar,
+}) => {
+  const [useCalc, setUseCalc] = useState<boolean | null>(null);
 
-/**
- * Normalize a header string for matching
- */
-function norm(s: any): string {
-  return String(s ?? '').toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]/g, '');
-}
+  // Serraria values (customM3 set from Excel)
+  const serrM3   = items.reduce((s, i) => s + (i.customM3 ?? 0), 0);
+  const serrSub  = items.reduce((s, i) => s + (i.customM3 ?? 0) * i.pricePerM3, 0);
+  // Comissão calculada sobre (subtotal − frete)
+  const serrTot  = serrSub - freight - commissionValue;
 
-/**
- * Match column index by header keywords
- */
-function findCol(headers: string[], ...keywords: string[]): number {
-  return headers.findIndex(h => keywords.some(k => h.includes(k)));
-}
+  // Calculated values (auto from dimensions)
+  const calcItems = items.map(i => ({ ...i, customM3: null }));
+  const calcM3   = calcItems.reduce((s, i) => s + calcDerived(i).finalM3, 0);
+  const calcSub  = calcItems.reduce((s, i) => s + calcDerived(i).value, 0);
+  // Comissão sobre (subtotal − frete)
+  const calcTot  = calcSub - freight - commissionValue;
 
-async function loadXLSX(): Promise<void> {
-  if (typeof XLSX !== 'undefined') return;
-  await new Promise<void>((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('Falha ao carregar biblioteca XLSX'));
-    document.head.appendChild(s);
+  const diffM3  = Math.abs(serrM3 - calcM3);
+  const diffSub = Math.abs(serrSub - calcSub);
+  const diffTot = Math.abs(serrTot - calcTot);
+
+  const Row: React.FC<{
+    label: string;
+    serr: string;
+    calc: string;
+    diff: string;
+    hasDiff: boolean;
+  }> = ({ label, serr, calc, diff, hasDiff }) => (
+    <tr className={hasDiff ? 'bg-amber-50' : 'bg-white'}>
+      <td className="px-3 py-2.5 text-xs font-bold text-gray-600">{label}</td>
+      <td className="px-3 py-2.5 text-xs text-center font-mono text-gray-700">{serr}</td>
+      <td className="px-3 py-2.5 text-xs text-center font-mono text-green-700 font-bold">{calc}</td>
+      <td className="px-3 py-2.5 text-xs text-center">
+        {hasDiff ? (
+          <span className="inline-flex items-center gap-1 text-amber-700 font-bold">
+            <AlertCircle className="w-3 h-3" /> {diff}
+          </span>
+        ) : (
+          <span className="text-green-600 font-bold flex items-center justify-center gap-1">
+            <CheckCircle2 className="w-3 h-3" /> OK
+          </span>
+        )}
+      </td>
+    </tr>
+  );
+
+  // Per-item comparison
+  const itemRows = items.map((item, i) => {
+    const serrM3i = item.customM3 ?? 0;
+    const calcM3i = calcDerived({ ...item, customM3: null }).finalM3;
+    const diff = Math.abs(serrM3i - calcM3i);
+    const qty = item.c3 || item.c4 || item.c5 || item.c6;
+    const comp = item.c3 ? 3 : item.c4 ? 4 : item.c5 ? 5 : 6;
+    return { item, serrM3i, calcM3i, diff, hasDiff: diff > 0.0001, qty, comp };
   });
-}
 
-export async function importFromExcel(file: File): Promise<ImportResult> {
-  await loadXLSX();
-  const buffer = await file.arrayBuffer();
-  const wb = XLSX.read(buffer, { type: 'array' });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-4">
 
-  const result: ImportResult = {
-    items: [],
-    rawRows: raw,
-    warnings: [],
-  };
+        {/* Header */}
+        <div className="bg-amber-500 px-5 py-4 rounded-t-2xl flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-6 h-6 text-white flex-shrink-0" />
+            <div>
+              <h2 className="font-black text-white text-base">Divergência encontrada!</h2>
+              <p className="text-amber-100 text-xs">
+                {warnings.length} diferença{warnings.length > 1 ? 's' : ''} entre os cálculos da serraria e do sistema
+              </p>
+            </div>
+          </div>
+          <button onClick={onCancel} className="p-1.5 text-white hover:bg-amber-600 rounded-lg transition-all">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-  // ── 1. Extract header fields (client, motorista, supplier, etc.) ──────────
-  for (let i = 0; i < Math.min(15, raw.length); i++) {
-    const row = raw[i];
-    const joined = row.map(c => String(c ?? '')).join(' ').toLowerCase();
+        <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
 
-    // Supplier (serraria name — usually row 1 or 2)
-    if (i <= 2 && !result.supplier) {
-      const text = row.filter(Boolean).join(' ').trim();
-      if (text && text.length > 5 && !joined.includes('romaneio') && !joined.includes('data')) {
-        result.supplier = text;
-      }
-    }
+          {/* Summary comparison table */}
+          <div>
+            <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Comparativo de Totais</p>
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-100 text-[10px] font-black uppercase tracking-wider text-gray-500">
+                    <th className="px-3 py-2 text-left"></th>
+                    <th className="px-3 py-2 text-center">🏭 Serraria</th>
+                    <th className="px-3 py-2 text-center">🖥 Sistema</th>
+                    <th className="px-3 py-2 text-center">Diferença</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  <Row
+                    label="Total M³"
+                    serr={fmtM3(serrM3)}
+                    calc={fmtM3(calcM3)}
+                    diff={fmtM3(diffM3)}
+                    hasDiff={diffM3 > 0.0001}
+                  />
+                  <Row
+                    label="Subtotal Madeira"
+                    serr={fmt(serrSub)}
+                    calc={fmt(calcSub)}
+                    diff={fmt(diffSub)}
+                    hasDiff={diffSub > 0.50}
+                  />
+                  <Row
+                    label="– Frete"
+                    serr={fmt(freight)}
+                    calc={fmt(freight)}
+                    diff="—"
+                    hasDiff={false}
+                  />
+                  <Row
+                    label="– Comissão"
+                    serr={fmt(commissionValue)}
+                    calc={fmt(commissionValue)}
+                    diff="—"
+                    hasDiff={false}
+                  />
+                  <tr className="bg-gray-800 text-white font-bold">
+                    <td className="px-3 py-2.5 text-xs">Total a Pagar</td>
+                    <td className="px-3 py-2.5 text-xs text-center font-mono">{fmt(serrTot)}</td>
+                    <td className="px-3 py-2.5 text-xs text-center font-mono text-green-300">{fmt(calcTot)}</td>
+                    <td className="px-3 py-2.5 text-xs text-center">
+                      {diffTot > 1 ? (
+                        <span className="text-amber-300 font-bold">{fmt(diffTot)}</span>
+                      ) : (
+                        <span className="text-green-300">✓ OK</span>
+                      )}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-    // Client
-    if (joined.includes('cliente')) {
-      const val = row.find((c, ci) => ci > 0 && c && !String(c).toLowerCase().includes('cliente'));
-      if (val) result.clientName = String(val).trim();
-    }
+          {/* Per-item breakdown if M3 differs */}
+          {itemRows.some(r => r.hasDiff) && (
+            <div>
+              <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Detalhamento por Item</p>
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <table className="w-full border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-gray-100 text-[10px] font-black uppercase tracking-wider text-gray-500">
+                      <th className="px-3 py-2 text-left">Peça</th>
+                      <th className="px-3 py-2 text-center">Qtd</th>
+                      <th className="px-3 py-2 text-center">M³ Serraria</th>
+                      <th className="px-3 py-2 text-center">M³ Sistema</th>
+                      <th className="px-3 py-2 text-center">Dif.</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {itemRows.map(({ item, serrM3i, calcM3i, diff, hasDiff, qty, comp }, i) => (
+                      <tr key={i} className={hasDiff ? 'bg-amber-50' : 'bg-white'}>
+                        <td className="px-3 py-2 font-bold text-gray-700">
+                          {item.espessura}×{item.largura}cm / {comp}m
+                        </td>
+                        <td className="px-3 py-2 text-center text-gray-600">{qty}</td>
+                        <td className="px-3 py-2 text-center font-mono text-gray-700">{serrM3i.toFixed(4)}</td>
+                        <td className="px-3 py-2 text-center font-mono text-green-700 font-bold">{calcM3i.toFixed(4)}</td>
+                        <td className="px-3 py-2 text-center">
+                          {hasDiff
+                            ? <span className="text-amber-600 font-bold">{diff.toFixed(4)}</span>
+                            : <span className="text-green-500">✓</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
-    // Motorista / Descarga
-    if (joined.includes('motorista') || joined.includes('descarga')) {
-      const val = row.find((c, ci) => ci > 0 && c && String(c).trim().length > 1);
-      if (val) result.motorista = String(val).trim();
-    }
+          {/* Choice */}
+          <div>
+            <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-3">
+              Qual M³ usar no romaneio?
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setUseCalc(false)}
+                className={[
+                  'p-4 rounded-xl border-2 text-left transition-all',
+                  useCalc === false
+                    ? 'border-amber-500 bg-amber-50'
+                    : 'border-gray-200 bg-white hover:border-amber-300'
+                ].join(' ')}
+              >
+                <p className="text-sm font-black text-gray-800">🏭 Valores da Serraria</p>
+                <p className="text-xs text-gray-500 mt-0.5">Usa o M³ que eles mandaram, mesmo com divergência</p>
+                <p className="text-sm font-bold text-amber-700 mt-2">{fmtM3(serrM3)} · {fmt(serrSub)}</p>
+              </button>
+              <button
+                onClick={() => setUseCalc(true)}
+                className={[
+                  'p-4 rounded-xl border-2 text-left transition-all',
+                  useCalc === true
+                    ? 'border-green-600 bg-green-50'
+                    : 'border-gray-200 bg-white hover:border-green-400'
+                ].join(' ')}
+              >
+                <p className="text-sm font-black text-gray-800">🖥 Recalculado pelo Sistema</p>
+                <p className="text-xs text-gray-500 mt-0.5">Recalcula o M³ com base nas dimensões e quantidades</p>
+                <p className="text-sm font-bold text-green-700 mt-2">{fmtM3(calcM3)} · {fmt(calcSub)}</p>
+              </button>
+            </div>
+          </div>
+        </div>
 
-    // Frete
-    if (joined.includes('frete') && !joined.includes('subtotal')) {
-      const nums = row.map(asNum).filter(n => n !== null) as number[];
-      if (nums.length) result.freight = Math.abs(nums[0]);
-    }
-
-    // Comissão
-    if (joined.includes('comiss')) {
-      const nums = row.map(asNum).filter(n => n !== null) as number[];
-      if (nums.length) result.commissionValue = Math.abs(nums[0]);
-    }
-
-    // Total madeira / subtotal
-    if (joined.includes('subtotal') || (joined.includes('total') && joined.includes('madeir'))) {
-      const nums = row.map(asNum).filter(n => n !== null) as number[];
-      if (nums.length) result.totalMadeira = nums[nums.length - 1];
-    }
-
-    // Total a receber / total a pagar
-    if (joined.includes('totalreceber') || joined.includes('totalpagar') ||
-        (joined.includes('total') && joined.includes('receber'))) {
-      const nums = row.map(asNum).filter(n => n !== null) as number[];
-      if (nums.length) result.totalAPagar = nums[nums.length - 1];
-    }
-  }
-
-  // ── 2. Find the data header row ───────────────────────────────────────────
-  let headerRowIdx = -1;
-  let colMap = { qty: -1, largura: -1, espessura: -1, comp: -1, preco: -1, m3: -1 };
-
-  for (let i = 0; i < raw.length; i++) {
-    const row = raw[i];
-    const headers = row.map(norm);
-
-    const qty     = findCol(headers, 'qtpecas', 'qtdpecas', 'qtpeças', 'qtdpeças', 'qtpecas', 'pecas', 'quantidade', 'qtd');
-    const largura = findCol(headers, 'largura', 'larg');
-    const esp     = findCol(headers, 'espessura', 'bitola', 'espess', 'bitol');
-    const comp    = findCol(headers, 'comp', 'comprimento', 'metros');
-    const preco   = findCol(headers, 'custom3', 'valorm3', 'precom3', 'custom', 'rm3', 'vlrm3', 'preco');
-    const m3      = findCol(headers, 'qtdm3', 'totalm3', 'm3', 'metros3', 'cubagem');
-
-    // Need at least qty + (largura or espessura)
-    if (qty >= 0 && (largura >= 0 || esp >= 0)) {
-      headerRowIdx = i;
-      colMap = { qty, largura, espessura: esp, comp, preco, m3 };
-      break;
-    }
-  }
-
-  if (headerRowIdx < 0) {
-    // Fallback: try to detect positionally from a row that looks like numbers
-    for (let i = 5; i < raw.length; i++) {
-      const row = raw[i];
-      const nums = row.map(asNum);
-      const numCount = nums.filter(n => n !== null).length;
-      if (numCount >= 4) {
-        // Guess columns positionally: qty, largura, espessura, comp, preco
-        colMap = { qty: 0, largura: 1, espessura: 2, comp: 3, preco: 4, m3: 5 };
-        headerRowIdx = i - 1;
-        break;
-      }
-    }
-  }
-
-  if (headerRowIdx < 0) {
-    throw new Error('Não foi possível encontrar as colunas de dados no arquivo. Verifique se o Excel tem colunas de Qtd Peças, Largura, Espessura e Comprimento.');
-  }
-
-  // ── 3. Parse data rows ────────────────────────────────────────────────────
-  let totalM3acc = 0;
-
-  for (let i = headerRowIdx + 1; i < raw.length; i++) {
-    const row = raw[i];
-    if (!row || row.every(c => c === null || c === '')) continue;
-
-    const qty   = asNum(colMap.qty >= 0 ? row[colMap.qty] : null);
-    const larg  = asNum(colMap.largura >= 0 ? row[colMap.largura] : null);
-    const esp   = asNum(colMap.espessura >= 0 ? row[colMap.espessura] : null);
-    const comp  = asNum(colMap.comp >= 0 ? row[colMap.comp] : null);
-    const preco = asNum(colMap.preco >= 0 ? row[colMap.preco] : null);
-    const m3val = asNum(colMap.m3 >= 0 ? row[colMap.m3] : null);
-
-    // Must have qty and at least dimensions
-    if (!qty || (!larg && !esp)) continue;
-
-    // Stop if we hit total/frete/subtotal rows
-    const rowText = row.map(c => String(c ?? '').toLowerCase()).join(' ');
-    if (['total', 'frete', 'subtotal', 'comiss', 'pagamento'].some(k => rowText.includes(k))) break;
-
-    const item = newItem();
-
-    // Convert meters → cm if value < 1 (serraria sends in meters)
-    item.espessura = esp ? (esp < 1 ? round(esp * 100, 2) : esp) : 0;
-    item.largura   = larg ? (larg < 1 ? round(larg * 100, 2) : larg) : 0;
-    item.pricePerM3 = preco || 0;
-
-    // Set quantity in the right comprimento column
-    const compVal = comp ? Math.round(comp) : 3;
-    if (compVal === 3) item.c3 = Math.round(qty);
-    else if (compVal === 4) item.c4 = Math.round(qty);
-    else if (compVal === 5) item.c5 = Math.round(qty);
-    else if (compVal === 6) item.c6 = Math.round(qty);
-    else item.c3 = Math.round(qty); // default 3m
-
-    // Use serraria's M³ value if available (more precise)
-    if (m3val && m3val > 0) {
-      item.customM3 = round(m3val);
-      totalM3acc += m3val;
-    }
-
-    result.items.push(item);
-  }
-
-  if (result.items.length === 0) {
-    throw new Error('Nenhuma linha de madeira encontrada no arquivo. Verifique o formato.');
-  }
-
-  if (totalM3acc > 0) result.totalM3 = round(totalM3acc);
-
-  // ── Validation: compare Excel values vs our calculations ─────────────────
-  const calcSubtotal = result.items.reduce((s, item) => {
-    const m3 = item.customM3 ?? 0;
-    return s + m3 * item.pricePerM3;
-  }, 0);
-
-  const calcM3 = result.items.reduce((s, item) => s + (item.customM3 ?? 0), 0);
-
-  // Check M³ total
-  if (result.totalM3 && Math.abs(calcM3 - result.totalM3) > 0.01) {
-    result.warnings.push({
-      field: 'Total M³',
-      expected: result.totalM3,
-      calculated: round(calcM3),
-      diff: round(Math.abs(calcM3 - result.totalM3)),
-      message: `M³ total da serraria (${result.totalM3.toFixed(4)}) difere do calculado (${round(calcM3).toFixed(4)}). Diferença: ${round(Math.abs(calcM3 - result.totalM3)).toFixed(4)} m³`,
-    });
-  }
-
-  // Check subtotal madeira
-  if (result.totalMadeira && Math.abs(calcSubtotal - result.totalMadeira) > 0.50) {
-    result.warnings.push({
-      field: 'Subtotal Madeira',
-      expected: result.totalMadeira,
-      calculated: round(calcSubtotal, 2),
-      diff: round(Math.abs(calcSubtotal - result.totalMadeira), 2),
-      message: `Subtotal da serraria (R$ ${result.totalMadeira.toFixed(2)}) difere do calculado (R$ ${calcSubtotal.toFixed(2)}). Diferença: R$ ${Math.abs(calcSubtotal - result.totalMadeira).toFixed(2)}`,
-    });
-  }
-
-  // Check total a pagar (subtotal - frete - comissao)
-  if (result.totalAPagar) {
-    const calcTotal = calcSubtotal - (result.freight || 0) - (result.commissionValue || 0);
-    if (Math.abs(calcTotal - result.totalAPagar) > 1) {
-      result.warnings.push({
-        field: 'Total a Pagar',
-        expected: result.totalAPagar,
-        calculated: round(calcTotal, 2),
-        diff: round(Math.abs(calcTotal - result.totalAPagar), 2),
-        message: `Total a receber da serraria (R$ ${result.totalAPagar.toFixed(2)}) difere do recalculado (R$ ${calcTotal.toFixed(2)}). Verifique frete e comissão.`,
-      });
-    }
-  }
-
-  return result;
-}
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+          <button onClick={onCancel}
+            className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all">
+            Cancelar
+          </button>
+          <button
+            onClick={() => useCalc !== null && onConfirm(useCalc ? calcItems : items, useCalc)}
+            disabled={useCalc === null}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-700 text-white rounded-xl text-sm font-bold hover:bg-green-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            <ChevronRight className="w-4 h-4" />
+            {useCalc === null ? 'Escolha uma opção acima' : `Importar com valores ${useCalc ? 'do sistema' : 'da serraria'}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
