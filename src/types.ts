@@ -107,8 +107,28 @@ export interface AppSettings {
   priceRefs: PriceRef[];
 }
 
+export interface BouncedCheck {
+  id: string;
+  clientId?: string;
+  clientName: string;
+  romaneioId?: string;     // referência ao romaneio de origem, se houver
+  numero?: string;         // número do cheque
+  banco?: string;
+  valor: number;
+  dataEmissao?: string;
+  dataDevolucao?: string;
+  motivo: string;          // motivo da devolução (sem fundos, divergência assinatura, etc.)
+  status: 'aguardando' | 'pago';
+  dataPagamento?: string;
+  notes?: string;
+  photoData?: string;      // base64 image data
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AppData {
   clients: Client[];
   documents: Document[];
+  bouncedChecks?: BouncedCheck[];
   settings: AppSettings;
 }
