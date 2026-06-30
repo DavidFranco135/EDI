@@ -656,7 +656,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
                         onChange={e => handleBlocoClientSelect(bloco.id, e.target.value)}
                         className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none">
                         <option value="">— Selecionar —</option>
-                        {state.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        {[...state.clients].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                       {!bloco.clientId && (
                         <input value={bloco.clientName || ''}
