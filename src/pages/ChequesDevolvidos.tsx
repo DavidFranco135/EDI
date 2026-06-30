@@ -229,7 +229,7 @@ export const ChequesDevolvidos: React.FC = () => {
                     className={INP}
                   >
                     <option value="">— Selecionar cadastrado —</option>
-                    {state.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    {[...state.clients].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                   <input
                     required
