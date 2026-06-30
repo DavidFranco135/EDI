@@ -12,6 +12,7 @@ function fmt(n: number) {
 type TypeFilter = 'todos' | 'pedido' | 'romaneio';
 type StatusFilter = 'todos' | 'andamento' | 'concluido';
 type PaymentFilter = 'todos' | 'aberto' | 'quitado';
+type WoodFilter = 'todos' | 'pinus' | 'eucalipto' | 'outro';
 
 export const Relatorios: React.FC = () => {
   const { state, deleteDocument, saveDocument } = useApp();
@@ -20,6 +21,7 @@ export const Relatorios: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>((searchParams.get('type') as TypeFilter) || 'todos');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>((searchParams.get('status') as StatusFilter) || 'todos');
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>((searchParams.get('payment') as PaymentFilter) || 'todos');
+  const [woodFilter, setWoodFilter] = useState<WoodFilter>('todos');
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -27,6 +29,7 @@ export const Relatorios: React.FC = () => {
   const filtered = useMemo(() => {
     return state.documents.filter(d => {
       if (typeFilter !== 'todos' && d.type !== typeFilter) return false;
+      if (woodFilter !== 'todos' && d.woodType !== woodFilter) return false;
       if (statusFilter === 'andamento' && d.status === 'concluido') return false;
       if (statusFilter === 'concluido' && d.status !== 'concluido') return false;
       if (d.type === 'romaneio' && paymentFilter !== 'todos') {
@@ -84,13 +87,27 @@ export const Relatorios: React.FC = () => {
       </div>
 
       {/* Type filter */}
-      <div className="flex gap-1 p-1 bg-white border border-gray-200 rounded-xl w-fit">
-        {(['todos', 'pedido', 'romaneio'] as TypeFilter[]).map(f => (
-          <button key={f} onClick={() => setTypeFilter(f)}
-            className={['px-4 py-2 rounded-lg text-xs font-bold transition-all capitalize',
-              typeFilter === f ? 'bg-green-700 text-white shadow' : 'text-gray-500 hover:bg-gray-100'].join(' ')}
-          >{f}</button>
-        ))}
+      <div className="flex flex-wrap gap-3">
+        <div className="flex gap-1 p-1 bg-white border border-gray-200 rounded-xl w-fit">
+          {(['todos', 'pedido', 'romaneio'] as TypeFilter[]).map(f => (
+            <button key={f} onClick={() => setTypeFilter(f)}
+              className={['px-4 py-2 rounded-lg text-xs font-bold transition-all capitalize',
+                typeFilter === f ? 'bg-green-700 text-white shadow' : 'text-gray-500 hover:bg-gray-100'].join(' ')}
+            >{f}</button>
+          ))}
+        </div>
+        <div className="flex gap-1 p-1 bg-white border border-gray-200 rounded-xl w-fit">
+          {(['todos', 'pinus', 'eucalipto', 'outro'] as WoodFilter[]).map(f => (
+            <button key={f} onClick={() => setWoodFilter(f)}
+              className={['px-3 py-2 rounded-lg text-xs font-bold transition-all capitalize',
+                woodFilter === f
+                  ? f === 'pinus' ? 'bg-amber-500 text-white shadow'
+                    : f === 'eucalipto' ? 'bg-red-500 text-white shadow'
+                    : 'bg-gray-700 text-white shadow'
+                  : 'text-gray-500 hover:bg-gray-100'].join(' ')}
+            >{f === 'todos' ? 'Todas Madeiras' : f}</button>
+          ))}
+        </div>
       </div>
 
       {/* Payment filter - only for romaneios */}
@@ -197,6 +214,16 @@ export const Relatorios: React.FC = () => {
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
                     {doc.type} Nº {doc.number}
                   </span>
+                  {doc.woodType && (
+                    <span className={[
+                      'text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase',
+                      doc.woodType === 'pinus' ? 'bg-amber-100 text-amber-700'
+                        : doc.woodType === 'eucalipto' ? 'bg-red-100 text-red-700'
+                        : 'bg-gray-100 text-gray-600'
+                    ].join(' ')}>
+                      {doc.woodType}
+                    </span>
+                  )}
                   <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded flex items-center gap-1">
                     <Calendar className="w-2.5 h-2.5" />
                     {doc.date ? format(parseISO(doc.date + 'T12:00:00'), 'dd/MM/yyyy') : '—'}
