@@ -4,6 +4,7 @@ import { useApp } from '../store/AppContext';
 import { Document, Bloco, TimberItem } from '../types';
 import { TimberCalculator } from '../components/TimberCalculator';
 import { ChequeTable } from '../components/ChequeTable';
+import { PaymentTracker } from '../components/PaymentTracker';
 import { Cheque } from '../lib/cheques';
 import { calcDerived } from '../lib/calc';
 import { buildDocHTML } from '../lib/docHTML';
@@ -72,6 +73,9 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     extras: [],
     partnerName: '',
     partnerSharePct: 0,
+    payments: [],
+    commissionPaid: false,
+    partnerPaid: false,
     notes: type === 'romaneio'
       ? 'O FRETE SERÁ PAGO À VISTA AO TRANSPORTADOR NO ATO DA DESCARGA, DEDUZIDO DO MATERIAL. MANDAR O PAGAMENTO DA MADEIRA PELO MOTORISTA.'
       : '',
@@ -678,6 +682,27 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
             total={total}
             paymentTerms={doc.paymentTerms || ''}
             docDate={doc.date || ''}
+          />
+        </div>
+      )}
+
+      {/* Payment tracking — only for saved romaneios */}
+      {type === 'romaneio' && id && (
+        <div>
+          <h2 className="text-sm font-black text-gray-700 uppercase tracking-wider mb-2 px-1">
+            💰 Controle de Recebimento
+          </h2>
+          <PaymentTracker
+            total={total}
+            payments={doc.payments || []}
+            onChangePayments={payments => setDoc(p => ({ ...p, payments }))}
+            commission={commission}
+            commissionPaid={doc.commissionPaid || false}
+            onChangeCommissionPaid={paid => setDoc(p => ({ ...p, commissionPaid: paid, commissionPaidDate: paid ? new Date().toISOString() : undefined }))}
+            partnerName={doc.partnerName}
+            partnerShareValue={partnerShareValue}
+            partnerPaid={doc.partnerPaid || false}
+            onChangePartnerPaid={paid => setDoc(p => ({ ...p, partnerPaid: paid, partnerPaidDate: paid ? new Date().toISOString() : undefined }))}
           />
         </div>
       )}
