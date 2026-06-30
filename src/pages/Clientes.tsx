@@ -147,12 +147,14 @@ export const Clientes: React.FC = () => {
 
   const filtered = useMemo(
     () =>
-      state.clients.filter(
-        c =>
-          c.name.toLowerCase().includes(search.toLowerCase()) ||
-          c.cnpj?.includes(search) ||
-          c.city?.toLowerCase().includes(search.toLowerCase())
-      ),
+      state.clients
+        .filter(
+          c =>
+            c.name.toLowerCase().includes(search.toLowerCase()) ||
+            c.cnpj?.includes(search) ||
+            c.city?.toLowerCase().includes(search.toLowerCase())
+        )
+        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })),
     [state.clients, search]
   );
 
