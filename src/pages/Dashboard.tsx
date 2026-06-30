@@ -29,7 +29,7 @@ export const Dashboard: React.FC = () => {
       });
     } catch { return false; }
   });
-  const comissaoMes = romaneiosMes.reduce((s, d) => s + (d.commissionValue || 0), 0);
+  const comissaoMes = romaneiosMes.reduce((s, d) => s + (d.myShareValue ?? d.commissionValue ?? 0), 0);
 
   const marcarConcluido = async (id: string) => {
     const doc = state.documents.find(d => d.id === id);
