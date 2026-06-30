@@ -1,8 +1,9 @@
 import { endOfDay, endOfMonth, format, isWithinInterval, parseISO, startOfDay, startOfMonth } from 'date-fns';
 import React, { useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../store/AppContext';
 import { Link } from 'react-router-dom';
-import { FileText, Truck, Trash2, ExternalLink, Search, Calendar, CheckCircle2, Clock, DollarSign } from 'lucide-react';
+import { FileText, Truck, Trash2, ExternalLink, Search, Calendar, CheckCircle2, Clock, DollarSign, AlertCircle } from 'lucide-react';
 
 function fmt(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -10,12 +11,15 @@ function fmt(n: number) {
 
 type TypeFilter = 'todos' | 'pedido' | 'romaneio';
 type StatusFilter = 'todos' | 'andamento' | 'concluido';
+type PaymentFilter = 'todos' | 'aberto' | 'quitado';
 
 export const Relatorios: React.FC = () => {
   const { state, deleteDocument, saveDocument } = useApp();
+  const [searchParams] = useSearchParams();
 
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('todos');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>((searchParams.get('type') as TypeFilter) || 'todos');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>((searchParams.get('status') as StatusFilter) || 'todos');
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>((searchParams.get('payment') as PaymentFilter) || 'todos');
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -25,6 +29,12 @@ export const Relatorios: React.FC = () => {
       if (typeFilter !== 'todos' && d.type !== typeFilter) return false;
       if (statusFilter === 'andamento' && d.status === 'concluido') return false;
       if (statusFilter === 'concluido' && d.status !== 'concluido') return false;
+      if (d.type === 'romaneio' && paymentFilter !== 'todos') {
+        const paid = (d.payments || []).reduce((s, p) => s + p.valor, 0);
+        const isQuitado = paid >= d.total - 0.01;
+        if (paymentFilter === 'quitado' && !isQuitado) return false;
+        if (paymentFilter === 'aberto' && isQuitado) return false;
+      }
       if (search &&
         !d.clientName.toLowerCase().includes(search.toLowerCase()) &&
         !d.number.includes(search)) return false;
@@ -82,6 +92,29 @@ export const Relatorios: React.FC = () => {
           >{f}</button>
         ))}
       </div>
+
+      {/* Payment filter - only for romaneios */}
+      {(typeFilter === 'romaneio' || typeFilter === 'todos') && (
+        <div className="flex gap-2">
+          {([
+            { val: 'todos', label: 'Todos Pagamentos', icon: null },
+            { val: 'aberto', label: 'Em Aberto', icon: AlertCircle },
+            { val: 'quitado', label: 'Quitados', icon: CheckCircle2 },
+          ] as any[]).map(s => (
+            <button key={s.val} onClick={() => setPaymentFilter(s.val)}
+              className={['flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border',
+                paymentFilter === s.val
+                  ? s.val === 'aberto' ? 'bg-red-100 border-red-400 text-red-800'
+                    : s.val === 'quitado' ? 'bg-green-100 border-green-400 text-green-800'
+                    : 'bg-gray-800 border-gray-800 text-white'
+                  : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'].join(' ')}
+            >
+              {s.icon && <s.icon className="w-3 h-3" />}
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Status filter - only for pedidos */}
       {(typeFilter === 'pedido' || typeFilter === 'todos') && (
@@ -188,6 +221,28 @@ export const Relatorios: React.FC = () => {
                   {doc.partnerName && (doc.partnerShareValue || 0) > 0 && (
                     <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full font-bold">
                       ÷ {doc.partnerName}
+                    </span>
+                  )}
+                  {doc.type === 'romaneio' && (() => {
+                    const paid = (doc.payments || []).reduce((s, p) => s + p.valor, 0);
+                    const isQuitado = paid >= doc.total - 0.01;
+                    return isQuitado ? (
+                      <span className="text-[10px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full font-bold">
+                        ✓ Quitado
+                      </span>
+                    ) : paid > 0 ? (
+                      <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">
+                        {fmt(paid)} recebido
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded-full font-bold">
+                        Não pago
+                      </span>
+                    );
+                  })()}
+                  {doc.type === 'romaneio' && doc.commissionPaid && (
+                    <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-full font-bold">
+                      Comissão ✓
                     </span>
                   )}
                 </div>
