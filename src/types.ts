@@ -63,6 +63,10 @@ export interface Document {
   supplier?: string;
   status?: 'andamento' | 'concluido';
   extras?: Array<{ id: string; desc: string; valor: number; op: '+' | '-' }>;
+  partnerName?: string;        // vendedor parceiro (se houver divisão)
+  partnerSharePct?: number;    // % da comissão que vai para o parceiro (0-100)
+  partnerShareValue?: number;  // valor calculado que vai para o parceiro
+  myShareValue?: number;       // valor líquido que fica comigo
   cheques?: Array<{ id: string; dias: number; vencimento: string; valor: number }>;
   romaneioId?: string;
   createdAt: string;
