@@ -46,10 +46,12 @@ export const Relatorios: React.FC = () => {
     (acc, d) => {
       acc.total += d.total;
       acc.m3 += d.totalM3;
-      acc.commission += (d.commissionValue || 0);
+      acc.commission += (d.myShareValue ?? d.commissionValue ?? 0);
+      acc.commissionGross += (d.commissionValue || 0);
+      acc.partnerShare += (d.partnerShareValue || 0);
       return acc;
     },
-    { total: 0, m3: 0, commission: 0 }
+    { total: 0, m3: 0, commission: 0, commissionGross: 0, partnerShare: 0 }
   ), [filtered]);
 
   const handleDelete = async (id: string) => {
@@ -129,11 +131,19 @@ export const Relatorios: React.FC = () => {
       </div>
 
       {/* Summary */}
-      {filtered.length > 0 && summary.commission > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 flex items-center gap-3 text-sm font-bold">
-          <DollarSign className="w-4 h-4 text-amber-600 flex-shrink-0" />
-          <span className="text-amber-700">Comissão total dos documentos filtrados:</span>
-          <span className="text-amber-800 text-base ml-auto">{fmt(summary.commission)}</span>
+      {filtered.length > 0 && summary.commissionGross > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 space-y-1">
+          <div className="flex items-center gap-3 text-sm font-bold">
+            <DollarSign className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span className="text-amber-700">Sua comissão líquida:</span>
+            <span className="text-amber-800 text-base ml-auto">{fmt(summary.commission)}</span>
+          </div>
+          {summary.partnerShare > 0 && (
+            <div className="flex items-center gap-3 text-xs text-amber-600 pl-7">
+              <span>Comissão bruta: {fmt(summary.commissionGross)}</span>
+              <span className="ml-auto">Repassado a parceiros: {fmt(summary.partnerShare)}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -175,6 +185,11 @@ export const Relatorios: React.FC = () => {
                 <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
                   <span>{doc.totalM3.toFixed(3)} m³</span>
                   <span className="font-bold text-green-700">{fmt(doc.total)}</span>
+                  {doc.partnerName && (doc.partnerShareValue || 0) > 0 && (
+                    <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full font-bold">
+                      ÷ {doc.partnerName}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
