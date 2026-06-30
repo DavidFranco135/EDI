@@ -3,7 +3,7 @@ import { NavLink, Link } from 'react-router-dom';
 import {
   Users, FileText, Truck, BarChart3, Settings,
   Cloud, CloudOff, RefreshCw, Menu, X, Home,
-  Table2, ChevronLeft, ChevronRight,
+  Table2, ChevronLeft, ChevronRight, Banknote,
 } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -19,6 +19,7 @@ const nav = [
   { path: '/romaneios/novo', icon: Truck, label: 'Novo Romaneio' },
   { path: '/relatorios', icon: BarChart3, label: 'Relatórios' },
   { path: '/tabela-precos', icon: Table2, label: 'Tabela Preços' },
+  { path: '/cheques-devolvidos', icon: Banknote, label: 'Cheques Devolvidos' },
   { path: '/configuracoes', icon: Settings, label: 'Configurações' },
 ];
 
