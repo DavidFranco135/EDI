@@ -36,6 +36,8 @@ export const Dashboard: React.FC = () => {
     } catch { return false; }
   });
   const comissaoMes = romaneiosMes.reduce((s, d) => s + (d.myShareValue ?? d.commissionValue ?? 0), 0);
+  const comissaoMesRecebida = romaneiosMes.filter(d => d.commissionPaid).reduce((s, d) => s + (d.myShareValue ?? d.commissionValue ?? 0), 0);
+  const comissaoMesAReceber = comissaoMes - comissaoMesRecebida;
 
   const marcarConcluido = async (id: string) => {
     const doc = state.documents.find(d => d.id === id);
