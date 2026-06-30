@@ -61,6 +61,7 @@ export interface Document {
   notes: string;
   motorista?: string;
   supplier?: string;
+  woodType?: 'pinus' | 'eucalipto' | 'outro';
   status?: 'andamento' | 'concluido';
   extras?: Array<{ id: string; desc: string; valor: number; op: '+' | '-' }>;
   partnerName?: string;        // vendedor parceiro (se houver divisão)
