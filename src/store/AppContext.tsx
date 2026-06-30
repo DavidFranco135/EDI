@@ -5,7 +5,7 @@ import React, {
   useEffect,
   useCallback,
 } from 'react';
-import { AppData, Client, Document, AppSettings } from '../types';
+import { AppData, Client, Document, AppSettings, BouncedCheck } from '../types';
 import {
   initFirebase,
   isFirebaseConfigured,
@@ -17,11 +17,15 @@ import {
   fbLoadDocuments,
   fbSaveSettings,
   fbLoadSettings,
+  fbSaveCheck,
+  fbDeleteCheck,
+  fbLoadChecks,
 } from '../lib/firebase';
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
 interface AppState extends AppData {
+  bouncedChecks: BouncedCheck[];
   isFirebaseReady: boolean;
   isSyncing: boolean;
   lastSync?: string;
@@ -47,6 +51,7 @@ const defaultSettings: AppSettings = {
 const initialState: AppState = {
   clients: [],
   documents: [],
+  bouncedChecks: [],
   settings: defaultSettings,
   isFirebaseReady: false,
   isSyncing: false,
@@ -67,7 +72,11 @@ type Action =
   | { type: 'DELETE_DOCUMENT'; payload: string }
   | { type: 'UPDATE_SETTINGS'; payload: AppSettings }
   | { type: 'SET_CLIENTS'; payload: Client[] }
-  | { type: 'SET_DOCUMENTS'; payload: Document[] };
+  | { type: 'SET_DOCUMENTS'; payload: Document[] }
+  | { type: 'SET_CHECKS'; payload: BouncedCheck[] }
+  | { type: 'ADD_CHECK'; payload: BouncedCheck }
+  | { type: 'UPDATE_CHECK'; payload: BouncedCheck }
+  | { type: 'DELETE_CHECK'; payload: string };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -83,6 +92,14 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, clients: action.payload };
     case 'SET_DOCUMENTS':
       return { ...state, documents: action.payload };
+    case 'SET_CHECKS':
+      return { ...state, bouncedChecks: action.payload };
+    case 'ADD_CHECK':
+      return { ...state, bouncedChecks: [action.payload, ...state.bouncedChecks] };
+    case 'UPDATE_CHECK':
+      return { ...state, bouncedChecks: state.bouncedChecks.map(c => c.id === action.payload.id ? action.payload : c) };
+    case 'DELETE_CHECK':
+      return { ...state, bouncedChecks: state.bouncedChecks.filter(c => c.id !== action.payload) };
     case 'ADD_CLIENT':
       return { ...state, clients: [action.payload, ...state.clients] };
     case 'UPDATE_CLIENT':
@@ -131,6 +148,8 @@ interface ContextValue {
   saveDocument: (d: Document) => Promise<void>;
   deleteDocument: (id: string) => Promise<void>;
   saveSettings: (s: AppSettings) => Promise<void>;
+  saveCheck: (c: BouncedCheck) => Promise<void>;
+  deleteCheck: (id: string) => Promise<void>;
   syncFromFirebase: () => Promise<void>;
 }
 
@@ -162,8 +181,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     // 1. Load from localStorage immediately
     const local = loadFromLS();
-    if (local.clients || local.documents || local.settings) {
-      dispatch({ type: 'LOAD_LOCAL', payload: local });
+    if (local.clients || local.documents || local.settings || (local as any).bouncedChecks) {
+      dispatch({ type: 'LOAD_LOCAL', payload: local as any });
     }
 
     // 2. Try Firebase
@@ -181,21 +200,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       clients: state.clients,
       documents: state.documents,
       settings: state.settings,
-    });
-  }, [state.clients, state.documents, state.settings]);
+      bouncedChecks: state.bouncedChecks,
+    } as any);
+  }, [state.clients, state.documents, state.settings, state.bouncedChecks]);
 
   // ── Firebase sync ─────────────────────────────────────────────────────────
   const syncFromFirebase = useCallback(async () => {
     if (!isFirebaseConfigured()) return;
     dispatch({ type: 'SET_SYNCING', payload: true });
     try {
-      const [clients, documents, settings] = await Promise.all([
+      const [clients, documents, settings, checks] = await Promise.all([
         fbLoadClients(),
         fbLoadDocuments(),
         fbLoadSettings(),
+        fbLoadChecks(),
       ]);
       dispatch({ type: 'SET_CLIENTS', payload: clients });
       dispatch({ type: 'SET_DOCUMENTS', payload: documents });
+      dispatch({ type: 'SET_CHECKS', payload: checks });
       if (settings) dispatch({ type: 'UPDATE_SETTINGS', payload: settings });
       dispatch({ type: 'SET_LAST_SYNC', payload: new Date().toISOString() });
     } catch (e) {
@@ -231,6 +253,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     if (isFirebaseConfigured()) await fbDeleteDocument(id);
   }, []);
 
+  const saveCheck = useCallback(async (check: BouncedCheck) => {
+    dispatch({
+      type: state.bouncedChecks.find(c => c.id === check.id) ? 'UPDATE_CHECK' : 'ADD_CHECK',
+      payload: check,
+    });
+    if (isFirebaseConfigured()) await fbSaveCheck(check);
+  }, [state.bouncedChecks]);
+
+  const deleteCheck = useCallback(async (id: string) => {
+    dispatch({ type: 'DELETE_CHECK', payload: id });
+    if (isFirebaseConfigured()) await fbDeleteCheck(id);
+  }, []);
+
   const saveSettings = useCallback(async (settings: AppSettings) => {
     dispatch({ type: 'UPDATE_SETTINGS', payload: settings });
     if (isFirebaseConfigured()) await fbSaveSettings(settings);
@@ -246,6 +281,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         saveDocument,
         deleteDocument,
         saveSettings,
+        saveCheck,
+        deleteCheck,
         syncFromFirebase,
       }}
     >
