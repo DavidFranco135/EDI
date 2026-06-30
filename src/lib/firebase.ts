@@ -12,7 +12,7 @@ import {
   Firestore,
 } from 'firebase/firestore';
 import { firebaseConfig, isFirebaseConfigured } from './firebase.config';
-import { Client, Document, AppSettings } from '../types';
+import { Client, Document, AppSettings, BouncedCheck } from '../types';
 
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
@@ -81,6 +81,23 @@ export async function fbSaveSettings(settings: AppSettings): Promise<void> {
 export async function fbLoadSettings(): Promise<AppSettings | null> {
   const snap = await getDoc(doc(getDb(), 'settings', 'main'));
   return snap.exists() ? (snap.data() as AppSettings) : null;
+}
+
+// ─── Bounced Checks ──────────────────────────────────────────────────────────
+
+export async function fbSaveCheck(check: BouncedCheck): Promise<void> {
+  const ref = doc(getDb(), 'bouncedChecks', check.id);
+  await setDoc(ref, check);
+}
+
+export async function fbDeleteCheck(id: string): Promise<void> {
+  await deleteDoc(doc(getDb(), 'bouncedChecks', id));
+}
+
+export async function fbLoadChecks(): Promise<BouncedCheck[]> {
+  const q = query(collection(getDb(), 'bouncedChecks'), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => d.data() as BouncedCheck);
 }
 
 export { isFirebaseConfigured };
