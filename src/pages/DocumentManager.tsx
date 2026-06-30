@@ -58,6 +58,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     clientId: '',
     clientName: '',
     supplier: '',
+    woodType: 'pinus' as const,
     blocos: [newBloco('Principal')],
     items: [],
     subtotal: 0,
@@ -435,9 +436,21 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
             <ArrowLeft className="w-5 h-5 text-gray-500" />
           </Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-black text-green-800 capitalize leading-tight truncate">
-              {type === 'pedido' ? 'Pedido' : 'Romaneio'} Nº {doc.number}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-black text-green-800 capitalize leading-tight truncate">
+                {type === 'pedido' ? 'Pedido' : 'Romaneio'} Nº {doc.number}
+              </h1>
+              {doc.woodType && (
+                <span className={[
+                  'text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0',
+                  doc.woodType === 'pinus' ? 'bg-amber-100 text-amber-700'
+                    : doc.woodType === 'eucalipto' ? 'bg-red-100 text-red-700'
+                    : 'bg-gray-100 text-gray-600'
+                ].join(' ')}>
+                  {doc.woodType}
+                </span>
+              )}
+            </div>
             <p className="text-[10px] text-gray-400 uppercase tracking-widest leading-tight">
               {id ? 'Editando' : 'Novo documento'}
             </p>
@@ -516,6 +529,30 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
           <input value={doc.supplier || ''} onChange={e => setDoc(p => ({ ...p, supplier: e.target.value }))}
             placeholder="Nome da fábrica..."
             className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tipo de Madeira</label>
+          <div className="grid grid-cols-3 gap-1.5">
+            {([
+              { val: 'pinus', label: 'Pinus', color: 'amber' },
+              { val: 'eucalipto', label: 'Eucalipto', color: 'red' },
+              { val: 'outro', label: 'Outro', color: 'gray' },
+            ] as const).map(w => (
+              <button key={w.val} type="button"
+                onClick={() => setDoc(p => ({ ...p, woodType: w.val }))}
+                className={[
+                  'py-2 rounded-lg text-xs font-bold border-2 transition-all',
+                  doc.woodType === w.val
+                    ? w.color === 'amber' ? 'border-amber-500 bg-amber-50 text-amber-700'
+                      : w.color === 'red' ? 'border-red-400 bg-red-50 text-red-700'
+                      : 'border-gray-400 bg-gray-100 text-gray-700'
+                    : 'border-gray-200 text-gray-400 hover:border-gray-300'
+                ].join(' ')}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Condição Pagamento</label>
