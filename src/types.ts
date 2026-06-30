@@ -67,6 +67,19 @@ export interface Document {
   partnerSharePct?: number;    // % da comissão que vai para o parceiro (0-100)
   partnerShareValue?: number;  // valor calculado que vai para o parceiro
   myShareValue?: number;       // valor líquido que fica comigo
+
+  // Controle de pagamentos do cliente
+  payments?: Array<{
+    id: string;
+    date: string;          // YYYY-MM-DD
+    valor: number;
+    method: 'dinheiro' | 'cheque' | 'pix' | 'deposito' | 'cartao' | 'outro';
+    notes?: string;
+  }>;
+  commissionPaid?: boolean;       // comissão já foi paga (a você)
+  commissionPaidDate?: string;
+  partnerPaid?: boolean;          // repasse ao parceiro já foi feito
+  partnerPaidDate?: string;
   cheques?: Array<{ id: string; dias: number; vencimento: string; valor: number }>;
   romaneioId?: string;
   createdAt: string;
