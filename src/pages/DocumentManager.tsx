@@ -8,7 +8,8 @@ import { PaymentTracker } from '../components/PaymentTracker';
 import { Cheque } from '../lib/cheques';
 import { calcDerived } from '../lib/calc';
 import { buildDocHTML } from '../lib/docHTML';
-import { ArrowLeft, Save, Printer, Plus, Share2, Trash2, ChevronDown, ChevronUp, Building2, Leaf, Upload, CheckCircle2, AlertCircle, Users } from 'lucide-react';
+import { buildPaymentReportHTML } from '../lib/paymentReportHTML';
+import { ArrowLeft, Save, Printer, Plus, Share2, Trash2, ChevronDown, ChevronUp, Building2, Leaf, Upload, CheckCircle2, AlertCircle, Users, FileCheck } from 'lucide-react';
 import { importFromExcel, ImportResult } from '../lib/importExcel';
 import { ImportReview } from '../components/ImportReview';
 import { format } from 'date-fns';
@@ -317,6 +318,24 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     const win = window.open('', '_blank');
     if (!win) { alert('Pop-up bloqueado. Permita pop-ups para este site e tente novamente.'); return; }
     win.document.write(getHTML(true));
+    win.document.close();
+  };
+
+  const handlePrintPaymentReport = () => {
+    if (!doc.id) {
+      alert('Salve o romaneio primeiro para gerar o relatório de pagamento.');
+      return;
+    }
+    const win = window.open('', '_blank');
+    if (!win) { alert('Pop-up bloqueado. Permita pop-ups para este site e tente novamente.'); return; }
+    const finalDoc: Document = {
+      ...doc,
+      subtotal: totals.subtotal,
+      totalM3: totals.m3,
+      commissionValue: commission,
+      total,
+    } as Document;
+    win.document.write(buildPaymentReportHTML(finalDoc, state.settings));
     win.document.close();
   };
 
@@ -689,9 +708,15 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
       {/* Payment tracking — only for saved romaneios */}
       {type === 'romaneio' && id && (
         <div>
-          <h2 className="text-sm font-black text-gray-700 uppercase tracking-wider mb-2 px-1">
-            💰 Controle de Recebimento
-          </h2>
+          <div className="flex items-center justify-between mb-2 px-1">
+            <h2 className="text-sm font-black text-gray-700 uppercase tracking-wider">
+              💰 Controle de Recebimento
+            </h2>
+            <button onClick={handlePrintPaymentReport}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 active:scale-95 transition-all">
+              <FileCheck className="w-3.5 h-3.5" /> Relatório de Pagamento
+            </button>
+          </div>
           <PaymentTracker
             total={total}
             payments={doc.payments || []}
