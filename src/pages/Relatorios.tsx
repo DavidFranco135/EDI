@@ -59,12 +59,21 @@ export const Relatorios: React.FC = () => {
     (acc, d) => {
       acc.total += d.total;
       acc.m3 += d.totalM3;
-      acc.commission += (d.myShareValue ?? d.commissionValue ?? 0);
-      acc.commissionGross += (d.commissionValue || 0);
-      acc.partnerShare += (d.partnerShareValue || 0);
+      // Comissão só existe em romaneios — pedidos nunca entram nesse cálculo
+      if (d.type === 'romaneio') {
+        const myShare = d.myShareValue ?? d.commissionValue ?? 0;
+        acc.commission += myShare;
+        acc.commissionGross += (d.commissionValue || 0);
+        acc.partnerShare += (d.partnerShareValue || 0);
+        if (d.commissionPaid) {
+          acc.commissionRecebida += myShare;
+        } else {
+          acc.commissionAReceber += myShare;
+        }
+      }
       return acc;
     },
-    { total: 0, m3: 0, commission: 0, commissionGross: 0, partnerShare: 0 }
+    { total: 0, m3: 0, commission: 0, commissionGross: 0, partnerShare: 0, commissionRecebida: 0, commissionAReceber: 0 }
   ), [filtered]);
 
   const handleDelete = async (id: string) => {
@@ -182,15 +191,24 @@ export const Relatorios: React.FC = () => {
 
       {/* Summary */}
       {filtered.length > 0 && summary.commissionGross > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 space-y-1">
-          <div className="flex items-center gap-3 text-sm font-bold">
-            <DollarSign className="w-4 h-4 text-amber-600 flex-shrink-0" />
-            <span className="text-amber-700">Sua comissão líquida:</span>
-            <span className="text-amber-800 text-base ml-auto">{fmt(summary.commission)}</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-3">
+            <div className="flex items-center gap-2 mb-1">
+              <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <span className="text-[10px] font-bold text-green-600 uppercase tracking-wider">Comissão Já Recebida</span>
+            </div>
+            <p className="text-xl font-black text-green-700">{fmt(summary.commissionRecebida)}</p>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Clock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Comissão a Receber</span>
+            </div>
+            <p className="text-xl font-black text-amber-700">{fmt(summary.commissionAReceber)}</p>
           </div>
           {summary.partnerShare > 0 && (
-            <div className="flex items-center gap-3 text-xs text-amber-600 pl-7">
-              <span>Comissão bruta: {fmt(summary.commissionGross)}</span>
+            <div className="md:col-span-2 flex items-center gap-3 text-xs text-gray-500 px-2">
+              <span>Comissão bruta total: {fmt(summary.commissionGross)}</span>
               <span className="ml-auto">Repassado a parceiros: {fmt(summary.partnerShare)}</span>
             </div>
           )}
