@@ -70,6 +70,8 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
     paymentTerms: 'À VISTA',
     cheques: [],
     extras: [],
+    partnerName: '',
+    partnerSharePct: 0,
     notes: type === 'romaneio'
       ? 'O FRETE SERÁ PAGO À VISTA AO TRANSPORTADOR NO ATO DA DESCARGA, DEDUZIDO DO MATERIAL. MANDAR O PAGAMENTO DA MADEIRA PELO MOTORISTA.'
       : '',
@@ -153,6 +155,11 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
   // 1. Base da comissão = subtotal − frete − acerto
   const baseComissao = totals.subtotal - (doc.freight || 0) - (doc.settlement || 0);
   const commission = doc.commissionPct ? Math.max(0, baseComissao) * (doc.commissionPct / 100) : 0;
+
+  // Divisão de comissão com vendedor parceiro
+  const partnerSharePct = doc.partnerSharePct || 0;
+  const partnerShareValue = partnerSharePct > 0 ? commission * (partnerSharePct / 100) : 0;
+  const myShareValue = commission - partnerShareValue;
   // 2. Total = subtotal − frete − acerto − comissão ± extras
   const total = type === 'romaneio'
     ? totals.subtotal - (doc.freight || 0) - (doc.settlement || 0) - commission + extrasTotal
@@ -269,6 +276,8 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
       subtotal: totals.subtotal,
       totalM3: totals.m3,
       commissionValue: commission,
+      partnerShareValue,
+      myShareValue,
       total,
       createdAt: doc.createdAt || now,
       updatedAt: now,
@@ -508,6 +517,18 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
               className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
           </div>
           <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Vendedor Parceiro (opcional)</label>
+            <input value={doc.partnerName || ''} onChange={e => setDoc(p => ({ ...p, partnerName: e.target.value }))}
+              placeholder="Nome do parceiro..."
+              className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">% Comissão p/ Parceiro</label>
+            <input type="number" min="0" max="100" value={doc.partnerSharePct || ''} onChange={e => setDoc(p => ({ ...p, partnerSharePct: parseFloat(e.target.value) || 0 }))}
+              placeholder="ex: 50"
+              className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
+          </div>
+          <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Acerto escritório (R$)</label>
             <input type="number" value={doc.settlement || ''} onChange={e => setDoc(p => ({ ...p, settlement: parseFloat(e.target.value) || 0 }))}
               className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
@@ -696,6 +717,11 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
             <div>
               <p className="text-green-300 text-xs font-bold uppercase tracking-wider">– Comissão</p>
               <p className="text-xl font-black text-red-300">{fmt(commission)}</p>
+              {partnerSharePct > 0 && (
+                <p className="text-[10px] text-green-200 mt-0.5">
+                  Você: {fmt(myShareValue)} · {doc.partnerName || 'Parceiro'}: {fmt(partnerShareValue)}
+                </p>
+              )}
             </div>
           )}
           {type === 'romaneio' && extrasTotal !== 0 && (
