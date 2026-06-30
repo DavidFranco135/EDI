@@ -19,6 +19,12 @@ export const Dashboard: React.FC = () => {
     d => d.type === 'pedido' && d.status !== 'concluido'
   );
 
+  const romaneiosAberto = state.documents.filter(d => {
+    if (d.type !== 'romaneio') return false;
+    const paid = (d.payments || []).reduce((s, p) => s + p.valor, 0);
+    return paid < d.total - 0.01;
+  });
+
   // Monthly commission
   const now = new Date();
   const romaneiosMes = state.documents.filter(d => {
@@ -153,6 +159,62 @@ export const Dashboard: React.FC = () => {
                 </div>
               </motion.div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Romaneios em Aberto (não quitados) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-black text-gray-800">Romaneios em Aberto</h2>
+            {romaneiosAberto.length > 0 && (
+              <span className="bg-red-100 text-red-700 text-xs font-black px-2 py-0.5 rounded-full">
+                {romaneiosAberto.length}
+              </span>
+            )}
+          </div>
+          <Link to="/relatorios?type=romaneio&payment=aberto"
+            className="flex items-center gap-1 text-xs font-bold text-green-700 hover:underline">
+            Ver todos <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+
+        {romaneiosAberto.length === 0 ? (
+          <div className="bg-white border border-dashed border-gray-200 rounded-xl p-8 text-center">
+            <CheckCircle2 className="w-10 h-10 text-green-300 mx-auto mb-2" />
+            <p className="text-gray-400 italic text-sm">Todos os romaneios estão quitados!</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {romaneiosAberto.slice(0, 5).map((doc, i) => {
+              const paid = (doc.payments || []).reduce((s, p) => s + p.valor, 0);
+              const remaining = doc.total - paid;
+              return (
+                <Link
+                  key={doc.id}
+                  to={`/romaneios/${doc.id}`}
+                  className="flex items-center justify-between p-4 bg-white border border-red-100 rounded-xl hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Truck className="w-4 h-4 text-red-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-black text-gray-900 text-sm truncate">{doc.clientName || '—'}</p>
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wider">
+                        Romaneio Nº {doc.number} •{' '}
+                        {doc.date ? format(parseISO(doc.date + 'T12:00:00'), 'dd/MM/yyyy') : '—'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-bold text-red-600 text-sm">Falta {fmt(remaining)}</p>
+                    <p className="text-[10px] text-gray-400">{fmt(paid)} de {fmt(doc.total)}</p>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
