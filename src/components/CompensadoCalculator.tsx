@@ -37,9 +37,10 @@ export const CompensadoCalculator: React.FC<Props> = ({ items, onChange, readOnl
   return (
     <div className="space-y-3 max-w-full">
       <div className="overflow-x-auto rounded border border-gray-300 bg-white shadow-sm" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <table className="w-full border-collapse text-xs" style={{ minWidth: 720 }}>
+        <table className="w-full border-collapse text-xs" style={{ minWidth: 920 }}>
           <thead>
             <tr className="bg-amber-700 text-white">
+              <th className="border border-amber-600 px-2 py-2 text-left font-bold text-[11px] uppercase">Descrição do Produto</th>
               <th className="border border-amber-600 px-2 py-2 text-center font-bold text-[11px] uppercase w-24">Bitola<br />(mm)</th>
               <th className="border border-amber-600 px-2 py-2 text-center font-bold text-[11px] uppercase w-24">Compr.<br />(m)</th>
               <th className="border border-amber-600 px-2 py-2 text-center font-bold text-[11px] uppercase w-24">Larg.<br />(m)</th>
@@ -56,6 +57,13 @@ export const CompensadoCalculator: React.FC<Props> = ({ items, onChange, readOnl
               const d = calcDerivedCompensado(item);
               return (
                 <tr key={item.id} className={i % 2 === 0 ? 'bg-white hover:bg-amber-50/20' : 'bg-gray-50/50 hover:bg-amber-50/20'}>
+                  <td className="border border-gray-200">
+                    <input type="text" value={item.desc}
+                      onChange={e => update(item.id, 'desc', e.target.value)}
+                      disabled={readOnly}
+                      placeholder="Ex: Madeirite Plastificado 12mm..."
+                      className="w-full p-2 bg-transparent focus:bg-amber-50 focus:outline-none text-sm transition-colors min-w-0" />
+                  </td>
                   <td className="border border-gray-200">
                     <input type="number" step="1" value={item.bitola || ''}
                       onChange={e => update(item.id, 'bitola', parseFloat(e.target.value) || 0)}
@@ -103,7 +111,7 @@ export const CompensadoCalculator: React.FC<Props> = ({ items, onChange, readOnl
             })}
             {items.length === 0 && (
               <tr>
-                <td colSpan={9} className="text-center py-8 text-gray-400 italic text-sm border border-gray-200">
+                <td colSpan={10} className="text-center py-8 text-gray-400 italic text-sm border border-gray-200">
                   Nenhuma chapa adicionada. Clique em "Adicionar Chapa" abaixo.
                 </td>
               </tr>
@@ -111,7 +119,7 @@ export const CompensadoCalculator: React.FC<Props> = ({ items, onChange, readOnl
           </tbody>
           <tfoot>
             <tr className="bg-gray-800 text-white font-bold">
-              <td colSpan={3} className="border border-gray-600 px-3 py-2 text-right text-xs uppercase tracking-wider opacity-70">
+              <td colSpan={4} className="border border-gray-600 px-3 py-2 text-right text-xs uppercase tracking-wider opacity-70">
                 Totais →
               </td>
               <td className="border border-gray-600 px-2 py-2 text-center tabular-nums">{totals.qty}</td>

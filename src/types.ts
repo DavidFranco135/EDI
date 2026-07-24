@@ -40,6 +40,7 @@ export interface ProductItem {
 
 export interface CompensadoItem {
   id: string;
+  desc: string;            // descrição do produto (ex: "Madeirite Plastificado 12mm")
   bitola: number;         // mm — espessura da chapa (ex: 9 a 20)
   comprimento: number;    // m — padrão 2,20
   largura: number;        // m — padrão 1,10
@@ -87,7 +88,7 @@ export interface Document {
   notes: string;
   motorista?: string;
   supplier?: string;
-  woodType?: 'pinus' | 'eucalipto' | 'outro';
+  woodType?: 'pinus' | 'eucalipto' | 'compensado' | 'outro';
   status?: 'andamento' | 'concluido';
   extras?: Array<{ id: string; desc: string; valor: number; op: '+' | '-' }>;
   serrariaBaseValue?: number;

@@ -24,6 +24,7 @@ export function totalValueCompensado(items: CompensadoItem[]): number {
 export function newEmptyCompensadoItem(bitola = 12): CompensadoItem {
   return {
     id: Math.random().toString(36).slice(2, 9),
+    desc: '',
     bitola,
     comprimento: 2.2,
     largura: 1.1,

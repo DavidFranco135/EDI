@@ -178,6 +178,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
       const bg = i % 2 === 0 ? (eco ? '#fff' : C_WARM) : (eco ? '#fff' : C_SAGE);
       return (
         '<tr style="background:' + bg + '">' +
+        '<td style="' + TD + ';text-align:left;padding-left:8px">' + (it.desc || '—') + '</td>' +
         '<td style="' + TD + '">' + it.bitola + ' mm</td>' +
         '<td style="' + TD + '">' + it.comprimento.toFixed(2) + ' x ' + it.largura.toFixed(2) + '</td>' +
         '<td style="' + TD + ';font-weight:bold">' + it.qty + '</td>' +
@@ -192,6 +193,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
     return (
       '<table style="margin-bottom:4px;font-size:12px">' +
       '<thead><tr style="background:' + TH_BG + ';color:' + TH_TXT + '">' +
+      '<th style="' + TH + ';text-align:left;padding-left:8px">Descrição do Produto</th>' +
       '<th style="' + TH + ';width:60px">Bitola</th>' +
       '<th style="' + TH + ';width:90px">Dimensões (m)</th>' +
       '<th style="' + TH + ';width:60px">Qtd</th>' +
@@ -201,7 +203,7 @@ export function buildDocHTML(p: DocHTMLParams): string {
       '</tr></thead>' +
       '<tbody>' + rows.join('') + '</tbody>' +
       '<tfoot><tr style="background:' + TOT_BG + ';color:' + TOT_T + ';font-weight:bold;border-top:3px solid ' + C_GOLD + '">' +
-      '<td colspan="3" style="' + TD + ';text-align:right;font-size:13px;letter-spacing:0.5px">TOTAL GERAL →</td>' +
+      '<td colspan="4" style="' + TD + ';text-align:right;font-size:13px;letter-spacing:0.5px">TOTAL GERAL →</td>' +
       '<td style="border:1px solid rgba(255,255,255,0.2);padding:3px 6px;text-align:center;font-size:12px;color:' + (eco ? '#555' : 'rgba(255,255,255,0.7)') + '">' + areaGrandTotal.toFixed(2) + ' m²</td>' +
       '<td style="' + TD + '"></td>' +
       '<td style="border:1px solid ' + C_GOLD + ';padding:5px 6px;text-align:right;font-size:17px;font-weight:900;background:' + TPAY_BG + ';color:' + TPAY_T + '">' + fmt(grandTotal) + '</td>' +

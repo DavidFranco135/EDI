@@ -16,7 +16,7 @@ function fmt(n: number) {
 type TypeFilter = 'todos' | 'pedido' | 'romaneio';
 type StatusFilter = 'todos' | 'andamento' | 'concluido';
 type PaymentFilter = 'todos' | 'aberto' | 'quitado';
-type WoodFilter = 'todos' | 'pinus' | 'eucalipto' | 'outro';
+type WoodFilter = 'todos' | 'pinus' | 'eucalipto' | 'compensado' | 'outro';
 type CommissionFilter = 'todos' | 'pendente' | 'recebida';
 type PurposeFilter = 'todos' | 'cliente' | 'serraria';
 
@@ -167,15 +167,16 @@ export const Relatorios: React.FC = () => {
         </div>
 
         <div className="flex gap-0.5 p-0.5 bg-white border border-gray-200 rounded-lg">
-          {(['todos', 'pinus', 'eucalipto', 'outro'] as WoodFilter[]).map(f => (
+          {(['todos', 'pinus', 'eucalipto', 'compensado', 'outro'] as WoodFilter[]).map(f => (
             <button key={f} onClick={() => setWoodFilter(f)}
               className={['px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all capitalize',
                 woodFilter === f
                   ? f === 'pinus' ? 'bg-amber-500 text-white shadow'
                     : f === 'eucalipto' ? 'bg-red-500 text-white shadow'
+                    : f === 'compensado' ? 'bg-orange-500 text-white shadow'
                     : 'bg-gray-700 text-white shadow'
                   : 'text-gray-500 hover:bg-gray-100'].join(' ')}
-            >{f === 'todos' ? 'Madeiras' : f}</button>
+            >{f === 'todos' ? 'Tipo' : f}</button>
           ))}
         </div>
 
@@ -322,6 +323,7 @@ export const Relatorios: React.FC = () => {
                       'text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase',
                       doc.woodType === 'pinus' ? 'bg-amber-100 text-amber-700'
                         : doc.woodType === 'eucalipto' ? 'bg-red-100 text-red-700'
+                        : doc.woodType === 'compensado' ? 'bg-orange-100 text-orange-700'
                         : 'bg-gray-100 text-gray-600'
                     ].join(' ')}>
                       {doc.woodType}

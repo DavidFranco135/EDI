@@ -759,6 +759,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
                   'text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0',
                   doc.woodType === 'pinus' ? 'bg-amber-100 text-amber-700'
                     : doc.woodType === 'eucalipto' ? 'bg-red-100 text-red-700'
+                    : doc.woodType === 'compensado' ? 'bg-orange-100 text-orange-700'
                     : 'bg-gray-100 text-gray-600'
                 ].join(' ')}>
                   {doc.woodType}
@@ -907,11 +908,12 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
             className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:border-green-600 outline-none" />
         </div>
         <div className="space-y-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tipo de Madeira</label>
-          <div className="grid grid-cols-3 gap-1.5">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tipo de Produto</label>
+          <div className="grid grid-cols-4 gap-1.5">
             {([
               { val: 'pinus', label: 'Pinus', color: 'amber' },
               { val: 'eucalipto', label: 'Eucalipto', color: 'red' },
+              { val: 'compensado', label: 'Compensado', color: 'orange' },
               { val: 'outro', label: 'Outro', color: 'gray' },
             ] as const).map(w => (
               <button key={w.val} type="button"
@@ -921,6 +923,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
                   doc.woodType === w.val
                     ? w.color === 'amber' ? 'border-amber-500 bg-amber-50 text-amber-700'
                       : w.color === 'red' ? 'border-red-400 bg-red-50 text-red-700'
+                      : w.color === 'orange' ? 'border-orange-500 bg-orange-50 text-orange-700'
                       : 'border-gray-400 bg-gray-100 text-gray-700'
                     : 'border-gray-200 text-gray-400 hover:border-gray-300'
                 ].join(' ')}
