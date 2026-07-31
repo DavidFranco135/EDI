@@ -1105,7 +1105,11 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
             </label>
             {usaValorServaria ? (
               <div className="w-full p-2.5 border border-purple-200 bg-purple-50 rounded-lg text-sm text-purple-800 font-bold">
-                {fmt(acertoDisplay)} <span className="font-normal text-purple-400 text-xs">(comissão + diferença do parceiro — deduzido do total no lugar da comissão separada)</span>
+                {fmt(acertoDisplay)} <span className="font-normal text-purple-400 text-xs">
+                  {temParceiro
+                    ? '(comissão + diferença do parceiro — deduzido do total no lugar da comissão separada)'
+                    : '(só a diferença, 100% sua — a comissão aparece deduzida separadamente, na linha "– Comissão")'}
+                </span>
               </div>
             ) : (
               <input type="number" value={doc.settlement || ''} onChange={e => setDoc(p => ({ ...p, settlement: parseFloat(e.target.value) || 0 }))}
