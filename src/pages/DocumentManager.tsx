@@ -798,7 +798,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
             <Printer className="w-3.5 h-3.5 flex-shrink-0" /> PDF / Compartilhar
           </button>
         </div>
-        {type === 'romaneio' && commission > 0 && (
+        {type === 'romaneio' && (commission > 0 || myShareValue > 0) && (
           <button onClick={handlePrintInternalBreakdown}
             title="PDF só pra você guardar — mostra comissão, valor negociado e quem fica com o quê. Não mande pro cliente."
             className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-amber-50 border-2 border-dashed border-amber-300 text-amber-700 rounded-lg text-xs font-bold hover:bg-amber-100 active:scale-95 transition-all">
@@ -1463,7 +1463,7 @@ export const DocumentManager: React.FC<{ type: 'pedido' | 'romaneio' }> = ({ typ
               <p className="text-xl font-black text-blue-200">{fmt(freightIcms)}</p>
             </div>
           )}
-          {type === 'romaneio' && commission > 0 && (
+          {type === 'romaneio' && (commission > 0 || myShareValue > 0) && (
             <div>
               <p className="text-green-300 text-xs font-bold uppercase tracking-wider">– Comissão{usaValorServaria ? ' (s/ valor serraria)' : ''}</p>
               <p className="text-xl font-black text-red-300">{fmt(commission)}</p>
