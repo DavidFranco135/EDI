@@ -183,8 +183,10 @@ export const PaymentTracker: React.FC<Props> = ({
         </button>
       </div>
 
-      {/* Commission settlement */}
-      {commission > 0 && (
+      {/* Commission settlement — mostra sempre que houver algo a receber
+          (comissão de verdade, ou só a diferença/acerto quando não há
+          porcentagem de comissão preenchida) */}
+      {(commission > 0 || (myShareValue || 0) > 0) && (
         <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Baixa de Comissão</p>
 
