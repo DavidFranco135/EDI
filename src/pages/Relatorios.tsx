@@ -7,6 +7,7 @@ import { FileText, Truck, Trash2, ExternalLink, Search, Calendar, CheckCircle2, 
 import { PartnerDetail } from '../components/PartnerDetail';
 import { buildPartnerReportHTML } from '../lib/partnerReportHTML';
 import { openDocumentPreview } from '../lib/documentPreview';
+import { calcDocumentFinancials } from '../lib/commissionCalc';
 import { AnimatePresence } from 'motion/react';
 
 function fmt(n: number) {
@@ -43,9 +44,7 @@ export const Relatorios: React.FC = () => {
       if (statusFilter === 'andamento' && d.status === 'concluido') return false;
       if (statusFilter === 'concluido' && d.status !== 'concluido') return false;
       if (d.type === 'romaneio' && commissionFilter !== 'todos') {
-        const hasCommission = (d.commissionValue || 0) > 0
-          ? (d.myShareValue ?? d.commissionValue ?? 0) > 0
-          : (d.settlement || 0) > 0;
+        const hasCommission = calcDocumentFinancials(d).myShareValue > 0;
         if (commissionFilter === 'pendente' && (d.commissionPaid || !hasCommission)) return false;
         if (commissionFilter === 'recebida' && !d.commissionPaid) return false;
       }
@@ -78,27 +77,28 @@ export const Relatorios: React.FC = () => {
       acc.m3 += d.totalM3;
       // Comissão só existe em romaneios — pedidos nunca entram nesse cálculo
       if (d.type === 'romaneio') {
-        // Se o romaneio tem comissão formal (%), soma só a sua parte dela
-        // (a lógica de parceiro já cuida da divisão). Se NÃO tem comissão
-        // nenhuma configurada mas tem um "Acerto Escritório" preenchido,
-        // esse valor conta como se fosse sua comissão — é como o
-        // ganho está sendo registrado nesse caso mais simples.
-        const myShare = (d.commissionValue || 0) > 0
-          ? (d.myShareValue ?? d.commissionValue ?? 0)
-          : (d.settlement || 0);
+        // Sempre recalcula na hora a partir dos dados brutos (itens, %,
+        // valor negociado etc) — nunca confia só no que já foi salvo,
+        // porque romaneios atualizados só por botões rápidos (marcar como
+        // pago, por exemplo) podem ter esses campos desatualizados ou
+        // nunca calculados, fazendo alguns romaneios pendentes "sumirem"
+        // da soma mesmo estando na lista.
+        const calc = calcDocumentFinancials(d);
+        const myShare = calc.myShareValue;
+        const partnerShare = calc.partnerShareValue;
         acc.commission += myShare;
-        acc.commissionGross += (d.commissionValue || 0);
+        acc.commissionGross += calc.commission;
         if (d.commissionPaid) {
           acc.commissionRecebida += myShare;
         } else {
           acc.commissionAReceber += myShare;
         }
         // Repasse ao parceiro só conta como "feito" se partnerPaid = true
-        if ((d.partnerShareValue || 0) > 0) {
+        if (partnerShare > 0) {
           if (d.partnerPaid) {
-            acc.partnerShareRepassado += d.partnerShareValue || 0;
+            acc.partnerShareRepassado += partnerShare;
           } else {
-            acc.partnerShareAPagar += d.partnerShareValue || 0;
+            acc.partnerShareAPagar += partnerShare;
           }
         }
       }
