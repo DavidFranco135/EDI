@@ -4,9 +4,19 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Users, FileText, Truck, ArrowRight, Clock, CheckCircle2, ChevronDown } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
+import { calcDocumentFinancials } from '../lib/commissionCalc';
 
 function fmt(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+// Comissão "minha" de um romaneio, sempre recalculada na hora a partir
+// dos dados brutos — nunca confia só no que foi salvo, porque romaneios
+// atualizados só por botões rápidos (marcar como pago, por exemplo)
+// podem ter commissionValue/myShareValue desatualizados ou nunca
+// calculados.
+function myShareFresh(d: any): number {
+  return calcDocumentFinancials(d).myShareValue;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -37,7 +47,7 @@ export const Dashboard: React.FC = () => {
       });
     } catch { return false; }
   });
-  const comissaoMes = romaneiosMes.reduce((s, d) => s + (d.myShareValue ?? d.commissionValue ?? 0), 0);
+  const comissaoMes = romaneiosMes.reduce((s, d) => s + myShareFresh(d), 0);
 
   // Comissão RECEBIDA no mês = baseada na data em que foi marcada como paga
   // (commissionPaidDate), não na data do romaneio. Um romaneio de junho
@@ -51,14 +61,17 @@ export const Dashboard: React.FC = () => {
         });
       } catch { return false; }
     })
-    .reduce((s, d) => s + (d.myShareValue ?? d.commissionValue ?? 0), 0);
+    .reduce((s, d) => s + myShareFresh(d), 0);
 
-  // Comissão a receber TOTAL (todos os romaneios, não só do mês)
+  // Comissão a receber TOTAL (todos os romaneios, não só do mês) — soma
+  // TODOS os romaneios pendentes, de qualquer tipo de madeira ou produto
+  // (pinus, eucalipto, porta, batente, compensado etc), sempre recalculado
+  // na hora pra nunca deixar nenhum de fora por dado desatualizado.
   const comissaoAReceberTotal = state.documents
     .filter(d => d.type === 'romaneio' && !d.commissionPaid)
-    .reduce((s, d) => s + (d.myShareValue ?? d.commissionValue ?? 0), 0);
+    .reduce((s, d) => s + myShareFresh(d), 0);
   const romaneiosComissaoPendente = state.documents
-    .filter(d => d.type === 'romaneio' && !d.commissionPaid && (d.myShareValue ?? d.commissionValue ?? 0) > 0).length;
+    .filter(d => d.type === 'romaneio' && !d.commissionPaid && myShareFresh(d) > 0).length;
 
   const marcarConcluido = async (id: string) => {
     const doc = state.documents.find(d => d.id === id);
